@@ -52,6 +52,7 @@ AChameleonCharacter::AChameleonCharacter()
 void AChameleonCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+	Tags.Add(FName("ChameleonCharacter"));
 	
 }
 
@@ -78,6 +79,7 @@ void AChameleonCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &ACharacter::Jump);
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AChameleonCharacter::Move);
+		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AChameleonCharacter::Look);
 	}
 	else
 	{
@@ -105,6 +107,18 @@ void AChameleonCharacter::Move(const FInputActionValue& Value)
 		AddMovementInput(ForwardDirection, MovementVector.X);
 		// This might not be needed
 		AddMovementInput(RightDirection, MovementVector.Y);
+	}
+}
+
+void AChameleonCharacter::Look(const FInputActionValue& Value)
+{
+	FVector2D LookAxisVector = Value.Get<FVector2D>();
+
+	if (Controller != nullptr)
+	{
+		// add yaw and pitch input to controller
+		AddControllerYawInput(LookAxisVector.X * -1);
+		AddControllerPitchInput(LookAxisVector.Y);
 	}
 }
 

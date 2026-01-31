@@ -48,8 +48,12 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Input")
 	UInputAction* MoveAction;
 
+	UPROPERTY(EditAnywhere, Category = "Input")
+	UInputAction* LookAction;
+
 
 	void Move(const FInputActionValue& Value);
+	void Look(const FInputActionValue& Value);
 
 protected:
 	// Called when the game starts or when spawned
@@ -57,9 +61,6 @@ protected:
 
 
 private:
-
-
-
 
 
 public: // This public should be used for getters and setters or inlinefunctions
