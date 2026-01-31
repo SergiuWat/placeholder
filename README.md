@@ -201,6 +201,8 @@ git lfs install
 ### 🔹 Link arhivă ZIP
 👉 https://drive.google.com/file/d/1DfT8LM7PQ4NoJdZF55daKOFhNFBXBIFv/view?usp=sharing
 
+### 🔹 Link Tutorial
+👉 https://drive.google.com/file/d/17NE5f6_SLHMsf7O-QWGdu51-yT6BhpVf/view?usp=sharing
 
 📌 Dacă ceva nu funcționează, NU continua la întâmplare — întreabă pe Discord sau poti sa imi scrii mesaj in Privat.
 Multumesc pwp :*.
