@@ -26,7 +26,7 @@ AEnemyBase::AEnemyBase()
 	bUseControllerRotationRoll = false;
 
 	GetCharacterMovement()->bOrientRotationToMovement = true;
-	GetCharacterMovement()->MaxWalkSpeed = 250.f;
+	GetCharacterMovement()->MaxWalkSpeed = 200.f;
 }
 
 
