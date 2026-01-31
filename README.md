@@ -89,10 +89,10 @@ git config --global user.email "ion.popescu@gmail.com"
 
 ---
 
-## 5. Lucrul cu repository-ul în Visual Studio Code
+### 5. Lucrul cu repository-ul în Visual Studio Community
 
 ### 🔹 Deschiderea proiectului
-1. Deschide **Visual Studio Code**
+1. Deschide **Visual Studio Community**
 2. Click pe **File → Open Folder**
 3. Selectează folderul `placeholder`
 
@@ -107,7 +107,7 @@ De ce?
 - eviți conflicte
 - nu suprascrii munca altora
 
-### 🔹 Cum faci Pull din Visual Studio Code
+### 🔹 Cum faci Pull din Visual Studio Community
 1. Mergi la tab-ul **Source Control** (iconița cu ramuri)
 2. Click pe cele **3 puncte (⋯)**
 3. Alege **Pull**
@@ -119,11 +119,41 @@ De ce?
 
 ---
 
-## 7. Commit în Visual Studio Code
+## 7. Crearea unui branch personal (după Pull)
+
+După ce ai făcut **Pull** și ești sigur că ai ultima versiune a proiectului, **următorul pas obligatoriu este să îți creezi propriul branch**.
+
+❗ NU lucra direct pe `main` / `master`.
+
+De ce folosim branch-uri:
+- fiecare lucrează izolat
+- evităm conflicte
+- codul poate fi verificat înainte de a ajunge pe branch-ul principal
+
+### 🔹 Cum creezi un branch în Visual Studio Community
+1. Asigură-te încă o dată că ai făcut **Pull**
+2. În colțul din stânga jos, click pe numele branch-ului curent (ex: `main`)
+3. Alege **Create new branch**
+4. Dă un nume sugestiv branch-ului, de exemplu:
+   - `feature/nume-tau`
+   - `bugfix/nume-tau`
+
+Exemplu:
+```
+feature/sergiu
+```
+
+După creare:
+- vei fi mutat automat pe branch-ul tău
+- toate commit-urile tale vor fi DOAR pe acest branch
+
+---
+
+## 8. Commit în Visual Studio Community
 
 După ce faci modificări:
 
-1. Mergi la **Source Control**
+1. Mergi la **Git Changes**
 2. Vei vedea fișierele modificate
 3. Scrie un mesaj de commit (clar și scurt)
    - exemplu: `Added player movement`
@@ -133,12 +163,12 @@ După ce faci modificări:
 
 ---
 
-## 8. Push în Visual Studio Code
+## 8. Push în Visual Studio Community
 
 După commit:
 
-1. În **Source Control**
-2. Click pe **Sync Changes** sau **Push**
+1. În **Git Changes**
+2. Click pe sagetica care arata in sus de langa cele **3 puncte (⋯)**  **Push**
 
 👉 Push = trimiți modificările pe GitHub, ca să le vadă și restul echipei
 
@@ -161,6 +191,8 @@ git lfs install
 ✅ Username și email setate
 
 ✅ **Pull înainte de lucru**
+
+✅ **Creare branch nou (obligatoriu)**
 
 ✅ Commit → Push din Visual Studio Code
 
