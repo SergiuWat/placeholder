@@ -10,7 +10,7 @@
 class UPawnSensingComponent;
 class AAIController;
 class AAIController;
-class AnimMontage;
+class UAnimMontage;
 UCLASS()
 class PLACEHOLDER_API AEnemyBase : public ACharacter
 {
@@ -79,10 +79,6 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
 	UAnimMontage* AttackMontage;
 
-private:	
-
-	UPROPERTY(EditAnywhere)
-	UPawnSensingComponent* PawnSensingComponent;
 
 	/*
 	*  Combat
@@ -95,8 +91,9 @@ private:
 
 	UPROPERTY(EditAnywhere)
 	float AttackRadius = 150.f;
+private:	
 
+	UPROPERTY(EditAnywhere)
+	UPawnSensingComponent* PawnSensingComponent;
 	void CheckCombatTarget();
-
-	
 };

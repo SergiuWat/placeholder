@@ -13,6 +13,9 @@ class UCameraComponent;
 class UInputAction;
 class UInputMappingContext;
 struct FInputActionValue;
+class AChameleonPlayerController;
+class UAnimMontage;
+
 UCLASS()
 class PLACEHOLDER_API AChameleonCharacter : public ACharacter
 {
@@ -55,16 +58,48 @@ public:
 	void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
 
+	/** Hud Functions */
+
+	void UpdateHUDHealth();
+
+
+	/** Animation Montages */
+	UPROPERTY(EditAnywhere)
+	UAnimMontage* DeathMontage;
+
+	void PlayDeathMontage();
+
+	UFUNCTION(BlueprintCallable)
+	void SetPlayerDeathFinished();
+
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
-
+	UFUNCTION()
+	void ReceiveDamage(AActor* DamageActor, float Damage, const UDamageType* DamageType, class AController* InstigatorController, AActor* DamageCause);
 
 private:
 
+	UPROPERTY()
+	AChameleonPlayerController* ChameleonPlayerController;
+
+	/** Player health and Shield*/
+	UPROPERTY(EditAnywhere, Category = "Player Starts")
+	float MaxHealth = 100.f;
+
+	UPROPERTY(VisibleAnywhere, Category = "Player Starts")
+	float Health = 100.f;
+
+	bool bIsPlayerDead = false;
+	bool bDeathFinished = false;
 
 public: // This public should be used for getters and setters or inlinefunctions
 
 	FORCEINLINE class USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
 	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
+	FORCEINLINE float GetHealth() const { return Health; }
+	FORCEINLINE float GetMaxHealth() const { return MaxHealth; }
+	FORCEINLINE void SetHealth(float Amount) { Health = Amount; }
+	FORCEINLINE bool IsPlayerDeath() { return bIsPlayerDead; }
+	FORCEINLINE bool IsPlayerDeathFinished() { return bDeathFinished; }
 };

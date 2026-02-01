@@ -27,4 +27,6 @@ void UChameleonAnimInstance::NativeUpdateAnimation(float DeltaTime)
 
 	bIsInAir = PlayerCharacter->GetCharacterMovement()->IsFalling();
 	bIsAccelerating = PlayerCharacter->GetCharacterMovement()->GetCurrentAcceleration().Size() > 0 ? true : false;
+	bIsPlayerDead = PlayerCharacter->IsPlayerDeath();
+	bIsPlayerDeadFinished = PlayerCharacter->IsPlayerDeathFinished();
 }

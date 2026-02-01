@@ -27,6 +27,8 @@ AEnemyBase::AEnemyBase()
 
 	GetCharacterMovement()->bOrientRotationToMovement = true;
 	GetCharacterMovement()->MaxWalkSpeed = 200.f;
+
+	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
 }
 
 
@@ -95,7 +97,6 @@ void AEnemyBase::CheckCombatTarget()
 		// Inside attack range, attack character
 		EnemyState = EEnemyState::EES_Attacking;
 		UE_LOG(LogTemp, Warning, TEXT("Attacking Player"));
-		// play attack montage
 		PlayAttackMontage();
 	}
 }

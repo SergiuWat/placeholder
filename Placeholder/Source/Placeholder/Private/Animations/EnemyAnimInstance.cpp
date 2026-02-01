@@ -26,4 +26,5 @@ void UEnemyAnimInstance::NativeUpdateAnimation(float DeltaTime)
 
 	bIsInAir = EnemyCharacter->GetCharacterMovement()->IsFalling();
 	bIsAccelerating = EnemyCharacter->GetCharacterMovement()->GetCurrentAcceleration().Size() > 0 ? true : false;
+
 }

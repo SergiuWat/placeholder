@@ -10,6 +10,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/Controller.h"
+#include "ChameleonControllers/ChameleonPlayerController.h"
 
 // Sets default values
 AChameleonCharacter::AChameleonCharacter()
@@ -46,15 +47,15 @@ AChameleonCharacter::AChameleonCharacter()
 
 }
 
-
-
 // Called when the game starts or when spawned
 void AChameleonCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+	UpdateHUDHealth();
 	Tags.Add(FName("ChameleonCharacter"));
-	
+	OnTakeAnyDamage.AddDynamic(this, &ThisClass::ReceiveDamage);
 }
+
 
 // Called every frame
 void AChameleonCharacter::Tick(float DeltaTime)
@@ -120,5 +121,45 @@ void AChameleonCharacter::Look(const FInputActionValue& Value)
 		AddControllerYawInput(LookAxisVector.X * -1);
 		AddControllerPitchInput(LookAxisVector.Y);
 	}
+}
+
+void AChameleonCharacter::UpdateHUDHealth()
+{
+	ChameleonPlayerController = ChameleonPlayerController == nullptr ? Cast<AChameleonPlayerController>(Controller) : ChameleonPlayerController;
+	if (ChameleonPlayerController)
+	{
+		ChameleonPlayerController->SetHUDHealth(Health, MaxHealth);
+	}
+}
+
+
+void AChameleonCharacter::ReceiveDamage(AActor* DamageActor, float Damage, const UDamageType* DamageType, AController* InstigatorController, AActor* DamageCause)
+{
+	if (bIsPlayerDead) return;
+	UE_LOG(LogTemp, Warning, TEXT("Player has been hit"));
+	Health = FMath::Clamp(Health - Damage, 0.f, MaxHealth);
+	UpdateHUDHealth();
+	if (Health == 0.f)
+	{
+		bIsPlayerDead = true;
+		DisableInput(Cast<APlayerController>(Controller));
+		GetCharacterMovement()->DisableMovement();
+
+		PlayDeathMontage();
+	}
+}
+
+void AChameleonCharacter::PlayDeathMontage()
+{
+	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+	if (AnimInstance && DeathMontage)
+	{
+		AnimInstance->Montage_Play(DeathMontage, 1.0f);
+	}
+}
+
+void AChameleonCharacter::SetPlayerDeathFinished()
+{
+	bDeathFinished = true;
 }
 
