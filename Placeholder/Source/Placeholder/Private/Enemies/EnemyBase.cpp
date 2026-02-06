@@ -10,6 +10,7 @@
 #include "Characters/ChameleonCharacter.h"
 #include "Animation/AnimMontage.h"
 #include "Animation/AnimInstance.h"
+#include "Kismet/GameplayStatics.h"
 
 // Sets default values
 AEnemyBase::AEnemyBase()
@@ -36,6 +37,14 @@ AEnemyBase::AEnemyBase()
 void AEnemyBase::BeginPlay()
 {
 	Super::BeginPlay();
+
+	CachedPlayer = Cast<AChameleonCharacter>(UGameplayStatics::GetPlayerPawn(this, 0));
+
+	if(CachedPlayer)
+	{
+		CachedPlayer->OnTransparencyChanged.AddUObject(this, &ThisClass::OnPlayerTransparencyChanged);
+	}
+	
 	if (PawnSensingComponent)
 	{
 		PawnSensingComponent->OnSeePawn.AddDynamic(this, &ThisClass::PawnSensed);
@@ -79,10 +88,8 @@ void AEnemyBase::CheckCombatTarget()
 	if (!InTargetRange(CombatTarget, CombatRadius))
 	{
 		// Outside combat radius, lose interest
-		EnemyState = EEnemyState::EES_Patrolling;
-		GetCharacterMovement()->MaxWalkSpeed = 200.f;
-		MoveToTarget(ChoosePatrolTarget());
-		GetWorldTimerManager().SetTimer(PatrolTimer, this, &ThisClass::PatrolTimerFinished, 5.f);
+		LoseInterest();
+
 	}
 	else if (!InTargetRange(CombatTarget, AttackRadius) && EnemyState != EEnemyState::EES_Chasing)
 	{
@@ -96,7 +103,6 @@ void AEnemyBase::CheckCombatTarget()
 	{
 		// Inside attack range, attack character
 		EnemyState = EEnemyState::EES_Attacking;
-		UE_LOG(LogTemp, Warning, TEXT("Attacking Player"));
 		PlayAttackMontage();
 	}
 }
@@ -144,9 +150,12 @@ AActor* AEnemyBase::ChoosePatrolTarget()
 
 void AEnemyBase::PawnSensed(APawn* PawnSensed)
 {
+	if (!CachedPlayer) return;
 	if (EnemyState == EEnemyState::EES_Chasing) return;
 	if (PawnSensed->ActorHasTag(FName("ChameleonCharacter")))
 	{
+		if (CachedPlayer->IsCharacterTransparent()) return;
+
 		if (EnemyState != EEnemyState::EES_Attacking)
 		{
 			EnemyState = EEnemyState::EES_Chasing;
@@ -158,6 +167,24 @@ void AEnemyBase::PawnSensed(APawn* PawnSensed)
 		MoveToTarget(CombatTarget);
 	}
 
+}
+
+void AEnemyBase::OnPlayerTransparencyChanged(bool bIsTransparent)
+{
+	if (bIsTransparent)
+	{
+		LoseInterest();
+	}
+}
+
+void AEnemyBase::LoseInterest()
+{
+	CombatTarget = nullptr;
+	EnemyState = EEnemyState::EES_Patrolling;
+	GetCharacterMovement()->MaxWalkSpeed = 200.f;
+
+	MoveToTarget(ChoosePatrolTarget());
+	GetWorldTimerManager().SetTimer(PatrolTimer, this, &ThisClass::PatrolTimerFinished, 5.f);
 }
 
 void AEnemyBase::PatrolTimerFinished()

@@ -11,6 +11,7 @@ class UPawnSensingComponent;
 class AAIController;
 class AAIController;
 class UAnimMontage;
+class AChameleonCharacter;
 UCLASS()
 class PLACEHOLDER_API AEnemyBase : public ACharacter
 {
@@ -83,6 +84,15 @@ protected:
 	/*
 	*  Combat
 	*/
+
+	UPROPERTY()
+	AChameleonCharacter* CachedPlayer;
+	
+	UFUNCTION()
+	void OnPlayerTransparencyChanged(bool bIsTransparent);
+
+	void LoseInterest();
+
 	UPROPERTY();
 	AActor* CombatTarget;
 

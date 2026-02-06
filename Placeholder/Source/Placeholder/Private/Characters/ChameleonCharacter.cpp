@@ -45,6 +45,8 @@ AChameleonCharacter::AChameleonCharacter()
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
 	FollowCamera->bUsePawnControlRotation = false;
 
+	TransparentTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("TransparentTimelineComponent"));
+
 }
 
 // Called when the game starts or when spawned
@@ -54,6 +56,11 @@ void AChameleonCharacter::BeginPlay()
 	UpdateHUDHealth();
 	Tags.Add(FName("ChameleonCharacter"));
 	OnTakeAnyDamage.AddDynamic(this, &ThisClass::ReceiveDamage);
+	TransparentTrack.BindDynamic(this, &ThisClass::UpdateTransparentMaterial);
+	if (TransparentCurve)
+	{
+		TransparentTimeline->AddInterpFloat(TransparentCurve, TransparentTrack);
+	}
 }
 
 
@@ -81,6 +88,7 @@ void AChameleonCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AChameleonCharacter::Move);
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AChameleonCharacter::Look);
+		EnhancedInputComponent->BindAction(InvisibleAction, ETriggerEvent::Triggered, this, &AChameleonCharacter::InvisibleActionPressed);
 	}
 	else
 	{
@@ -123,6 +131,25 @@ void AChameleonCharacter::Look(const FInputActionValue& Value)
 	}
 }
 
+void AChameleonCharacter::InvisibleActionPressed(const FInputActionValue& Value)
+{
+	if (!bCanPlayerBecomeTransparent) return;
+
+	if (TransparentMaterialInstance_1 && TransparentMaterialInstance_2)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Dynamic material created"));
+		DynamicTransparentMaterialInstance_1 = UMaterialInstanceDynamic::Create(TransparentMaterialInstance_1, this);
+		DynamicTransparentMaterialInstance_2 = UMaterialInstanceDynamic::Create(TransparentMaterialInstance_2, this);
+
+		GetMesh()->SetMaterial(0, DynamicTransparentMaterialInstance_1);
+		GetMesh()->SetMaterial(1, DynamicTransparentMaterialInstance_2);
+		DynamicTransparentMaterialInstance_1->SetScalarParameterValue(TEXT("Opacity"), 1.f);
+		DynamicTransparentMaterialInstance_2->SetScalarParameterValue(TEXT("Opacity"), 1.f);
+	}
+	bIsCharacterTransparent ? StopTransparent() : StartTransparent();
+
+}
+
 void AChameleonCharacter::UpdateHUDHealth()
 {
 	ChameleonPlayerController = ChameleonPlayerController == nullptr ? Cast<AChameleonPlayerController>(Controller) : ChameleonPlayerController;
@@ -162,4 +189,37 @@ void AChameleonCharacter::SetPlayerDeathFinished()
 {
 	bDeathFinished = true;
 }
+
+void AChameleonCharacter::UpdateTransparentMaterial(float TransparentValue)
+{
+	if (DynamicTransparentMaterialInstance_1 && DynamicTransparentMaterialInstance_2)
+	{
+		DynamicTransparentMaterialInstance_1->SetScalarParameterValue(TEXT("Opacity"), TransparentValue);
+		DynamicTransparentMaterialInstance_2->SetScalarParameterValue(TEXT("Opacity"), TransparentValue);
+	}
+}
+
+void AChameleonCharacter::StartTransparent()
+{
+
+	if (TransparentCurve && TransparentTimeline)
+	{
+		GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
+		bIsCharacterTransparent = true;
+		OnTransparencyChanged.Broadcast(true);
+		TransparentTimeline->Play();
+	}
+}
+
+void AChameleonCharacter::StopTransparent()
+{
+	if (TransparentCurve && TransparentTimeline)
+	{
+		GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+		bIsCharacterTransparent = false;
+		OnTransparencyChanged.Broadcast(false);
+		TransparentTimeline->Reverse();
+	}
+}
+
 

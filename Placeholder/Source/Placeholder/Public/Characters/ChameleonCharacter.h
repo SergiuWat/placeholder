@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "Logging/LogMacros.h"
+#include "Components/TimelineComponent.h"
 #include "ChameleonCharacter.generated.h"
 
 
@@ -15,6 +16,9 @@ class UInputMappingContext;
 struct FInputActionValue;
 class AChameleonPlayerController;
 class UAnimMontage;
+
+
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnTransparencyChanged, bool);
 
 UCLASS()
 class PLACEHOLDER_API AChameleonCharacter : public ACharacter
@@ -54,9 +58,13 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Input")
 	UInputAction* LookAction;
 
+	UPROPERTY(EditAnywhere, Category = "Input")
+	UInputAction* InvisibleAction;
+
 
 	void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
+	void InvisibleActionPressed(const FInputActionValue& Value);
 
 	/** Hud Functions */
 
@@ -71,6 +79,46 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	void SetPlayerDeathFinished();
+
+	/**
+	Transparent effect
+	*/
+
+	FOnTransparencyChanged OnTransparencyChanged;
+
+	bool bIsCharacterTransparent = false;
+
+	bool bCanPlayerBecomeTransparent = false;
+
+	UPROPERTY(VisibleAnywhere, Category = "Transparent")
+	UTimelineComponent* TransparentTimeline;
+
+	FOnTimelineFloat TransparentTrack;
+
+
+	UPROPERTY(EditAnywhere, Category = "Transparent")
+	UCurveFloat* TransparentCurve;
+
+	// Dynamic instance that we can change at runtime
+	UPROPERTY(VisibleAnywhere, Category = "Transparent")
+	UMaterialInstanceDynamic* DynamicTransparentMaterialInstance_1;
+
+	UPROPERTY(VisibleAnywhere, Category = "Transparent")
+	UMaterialInstanceDynamic* DynamicTransparentMaterialInstance_2;
+
+	// Material instance set on the blueprint used with the dynamic material instance
+	UPROPERTY(EditAnywhere, Category = "Transparent")
+	UMaterialInstance* TransparentMaterialInstance_1;
+
+	UPROPERTY(EditAnywhere, Category = "Transparent")
+	UMaterialInstance* TransparentMaterialInstance_2;
+
+	UFUNCTION()
+	void UpdateTransparentMaterial(float TransparentValue);
+
+	void StartTransparent();
+
+	void StopTransparent();
 
 protected:
 	// Called when the game starts or when spawned
@@ -100,6 +148,9 @@ public: // This public should be used for getters and setters or inlinefunctions
 	FORCEINLINE float GetHealth() const { return Health; }
 	FORCEINLINE float GetMaxHealth() const { return MaxHealth; }
 	FORCEINLINE void SetHealth(float Amount) { Health = Amount; }
+	FORCEINLINE void SetCanPlayerBecomeTransparent(bool CanBeTransparent) { bCanPlayerBecomeTransparent = CanBeTransparent; }
 	FORCEINLINE bool IsPlayerDeath() { return bIsPlayerDead; }
 	FORCEINLINE bool IsPlayerDeathFinished() { return bDeathFinished; }
+	FORCEINLINE bool IsCharacterTransparent() { return bIsCharacterTransparent; }
+
 };
