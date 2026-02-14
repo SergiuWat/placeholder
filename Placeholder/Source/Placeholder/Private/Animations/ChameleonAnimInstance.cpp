@@ -22,11 +22,14 @@ void UChameleonAnimInstance::NativeUpdateAnimation(float DeltaTime)
 	if (PlayerCharacter == nullptr) return;
 
 	FVector Velocity = PlayerCharacter->GetVelocity();
+	ClimbSpeed = Velocity.Z;
 	Velocity.Z = 0.f;
 	Speed = Velocity.Size();
+	
 
 	bIsInAir = PlayerCharacter->GetCharacterMovement()->IsFalling();
 	bIsAccelerating = PlayerCharacter->GetCharacterMovement()->GetCurrentAcceleration().Size() > 0 ? true : false;
 	bIsPlayerDead = PlayerCharacter->IsPlayerDeath();
 	bIsPlayerDeadFinished = PlayerCharacter->IsPlayerDeathFinished();
+	bIsClimbing = PlayerCharacter->IsCharacterClimbing();
 }

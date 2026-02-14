@@ -61,6 +61,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Input")
 	UInputAction* InvisibleAction;
 
+	UPROPERTY(EditAnywhere, Category = "Input")
+	UInputAction* ClimbAction;
+
 
 	void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
@@ -117,9 +120,31 @@ public:
 	void UpdateTransparentMaterial(float TransparentValue);
 
 	void StartTransparent();
-
 	void StopTransparent();
 
+
+	/*
+	* Climbing 
+	*/
+
+	void ClimbingLineTrace();
+	void CheckClimbSurface();
+	void StartMantle(const FHitResult& WallHit);
+	void StopClimbing();
+
+	UPROPERTY(VisibleAnywhere)
+	USceneComponent* StartTrace;
+
+	UPROPERTY(VisibleAnywhere)
+	USceneComponent* LedgeTrace;
+	bool bIsClimbing = false;
+	float LaunchForwardDistance = 50.f;
+	float LaunchHeightDistance = 185.f;
+
+	UPROPERTY(EditAnywhere)
+	UAnimMontage* ClimbMontage;
+
+	void PlayClimbMontage();
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
@@ -152,5 +177,6 @@ public: // This public should be used for getters and setters or inlinefunctions
 	FORCEINLINE bool IsPlayerDeath() { return bIsPlayerDead; }
 	FORCEINLINE bool IsPlayerDeathFinished() { return bDeathFinished; }
 	FORCEINLINE bool IsCharacterTransparent() { return bIsCharacterTransparent; }
+	FORCEINLINE bool IsCharacterClimbing() { return bIsClimbing; }
 
 };
