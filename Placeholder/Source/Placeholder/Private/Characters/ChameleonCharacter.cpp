@@ -12,6 +12,8 @@
 #include "GameFramework/Controller.h"
 #include "ChameleonControllers/ChameleonPlayerController.h"
 #include "Kismet/KismetSystemLibrary.h"
+#include "CableComponent.h"
+
 
 #include "DrawDebugHelpers.h"
 
@@ -56,8 +58,14 @@ AChameleonCharacter::AChameleonCharacter()
 	LedgeTrace = CreateDefaultSubobject<USceneComponent>(TEXT("LedgeTrace"));
 	LedgeTrace->SetupAttachment(GetRootComponent());
 
-}
+	StartGrappleLocation = CreateDefaultSubobject<USceneComponent>(TEXT("StartGrappleLocation"));
+	StartGrappleLocation->SetupAttachment(GetRootComponent());
 
+	CableComponent = CreateDefaultSubobject<UCableComponent>(TEXT("CableComponent"));
+	CableComponent->SetupAttachment(StartGrappleLocation);
+	CableComponent->SetVisibility(false);
+	
+}
 
 
 // Called when the game starts or when spawned
@@ -68,12 +76,19 @@ void AChameleonCharacter::BeginPlay()
 	Tags.Add(FName("ChameleonCharacter"));
 	OnTakeAnyDamage.AddDynamic(this, &ThisClass::ReceiveDamage);
 	TransparentTrack.BindDynamic(this, &ThisClass::UpdateTransparentMaterial);
+
+	ChameleonPlayerController = ChameleonPlayerController == nullptr ? Cast<AChameleonPlayerController>(Controller) : ChameleonPlayerController;
+	if (ChameleonPlayerController)
+	{
+		ChameleonPlayerController->SetShowMouseCursor(true);
+	}
+
 	if (TransparentCurve)
 	{
 		TransparentTimeline->AddInterpFloat(TransparentCurve, TransparentTrack);
 	}
-}
 
+}
 
 // Called every frame
 void AChameleonCharacter::Tick(float DeltaTime)
@@ -106,6 +121,7 @@ void AChameleonCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AChameleonCharacter::Look);
 		EnhancedInputComponent->BindAction(InvisibleAction, ETriggerEvent::Triggered, this, &AChameleonCharacter::InvisibleActionPressed);
 		EnhancedInputComponent->BindAction(ClimbAction, ETriggerEvent::Triggered, this, &AChameleonCharacter::ClimbingLineTrace);
+		EnhancedInputComponent->BindAction(GrappleAction, ETriggerEvent::Triggered, this, &AChameleonCharacter::StartGrapple);
 	}
 	else
 	{
@@ -344,6 +360,8 @@ void AChameleonCharacter::StartMantle(const FHitResult& WallHit)
 	LatentInfo.ExecutionFunction = "OnMantleFinished";
 	LatentInfo.UUID = 1;
 
+
+
 	UKismetSystemLibrary::MoveComponentTo(
 		GetCapsuleComponent(),
 		TargetLocation,
@@ -376,6 +394,85 @@ void AChameleonCharacter::PlayClimbMontage()
 	{
 		AnimInstance->Montage_Play(ClimbMontage, 1.0f);
 	}
+}
+
+#pragma endregion 
+
+
+#pragma region Grapple
+void AChameleonCharacter::StartGrapple()
+{
+	if (bIsGrapplingActive) return;
+
+	ChameleonPlayerController = ChameleonPlayerController == nullptr ? Cast<AChameleonPlayerController>(Controller) : ChameleonPlayerController;
+
+	if (ChameleonPlayerController == nullptr) return;
+
+	FHitResult HitResult;
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(this);
+	float SphereRadius = 25.f;
+
+	FVector MouseWorldLocation;
+	FVector MouseWorldDirection;
+
+	if (!ChameleonPlayerController->DeprojectMousePositionToWorld(MouseWorldLocation, MouseWorldDirection))
+		return;
+
+	float PlaneY = GetActorLocation().Y;
+
+	float T = (PlaneY - MouseWorldLocation.Y) / MouseWorldDirection.Y;
+	FVector MouseWorldPoint = MouseWorldLocation + MouseWorldDirection * T;
+
+	FVector Start = StartGrappleLocation->GetComponentLocation();
+	FVector Direction = (MouseWorldPoint - Start).GetSafeNormal();
+
+	FVector End = Start + Direction * 3000.f;
+	
+	bool bHit = GetWorld()->SweepSingleByChannel(HitResult, Start, End, FQuat::Identity, ECC_Visibility, FCollisionShape::MakeSphere(25.f), QueryParams);
+
+    if (bHit) 
+    {
+       UE_LOG(LogTemp, Warning, TEXT("Hit"));
+	   FLatentActionInfo LatentInfo;
+	   LatentInfo.CallbackTarget = this;
+	   LatentInfo.UUID = 1;
+	   LatentInfo.Linkage = 0;
+	   LatentInfo.ExecutionFunction = FName("OnGrappleFinished");
+
+	   USceneComponent* GrappleAnchor = NewObject<USceneComponent>(this);
+	   GrappleAnchor->RegisterComponent();
+	   GrappleAnchor->SetWorldLocation(HitResult.ImpactPoint);
+
+	   CableComponent->SetVisibility(true);
+	   CableComponent->SetAttachEndToComponent(GrappleAnchor, NAME_None);
+
+	   bIsGrapplingActive = true;
+
+	   UKismetSystemLibrary::MoveComponentTo(
+		   GetCapsuleComponent(),
+		   HitResult.ImpactPoint,
+		   GetActorRotation(),
+		   false,
+		   false,
+		   0.5f,
+		   true,
+		   EMoveComponentAction::Move,
+		   LatentInfo
+	   );
+    } 
+	/*DrawDebugSphere(GetWorld(), StartGrappleLocation->GetComponentLocation(), SphereRadius, 12, FColor::Blue, false, 2.f);
+	DrawDebugSphere(GetWorld(), End, SphereRadius, 12, bHit ? FColor::Red : FColor::Green, false, 2.f);
+	DrawDebugLine(GetWorld(), StartGrappleLocation->GetComponentLocation(), End, FColor::White, false, 2.f, 0, 2.f);*/
+
+}
+
+
+void AChameleonCharacter::OnGrappleFinished()
+{
+	CableComponent->SetVisibility(false);
+	CableComponent->SetAttachEndTo(nullptr, NAME_None);
+	bIsGrapplingActive = false;
 }
 
 #pragma endregion 

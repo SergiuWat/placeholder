@@ -16,6 +16,7 @@ class UInputMappingContext;
 struct FInputActionValue;
 class AChameleonPlayerController;
 class UAnimMontage;
+class UCableComponent;
 
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnTransparencyChanged, bool);
@@ -64,6 +65,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Input")
 	UInputAction* ClimbAction;
 
+	UPROPERTY(EditAnywhere, Category = "Input")
+	UInputAction* GrappleAction;
+
 
 	void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
@@ -98,7 +102,6 @@ public:
 
 	FOnTimelineFloat TransparentTrack;
 
-
 	UPROPERTY(EditAnywhere, Category = "Transparent")
 	UCurveFloat* TransparentCurve;
 
@@ -122,7 +125,6 @@ public:
 	void StartTransparent();
 	void StopTransparent();
 
-
 	/*
 	* Climbing 
 	*/
@@ -145,6 +147,23 @@ public:
 	UAnimMontage* ClimbMontage;
 
 	void PlayClimbMontage();
+
+	/*
+	* Grapple
+	*/
+	void StartGrapple();
+
+	UPROPERTY(VisibleAnywhere)
+	USceneComponent* StartGrappleLocation;
+
+	UPROPERTY(VisibleAnywhere, Category = "Cable")
+	UCableComponent* CableComponent;
+
+	bool bIsGrapplingActive = false;
+
+	UFUNCTION()
+	void OnGrappleFinished();
+
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
