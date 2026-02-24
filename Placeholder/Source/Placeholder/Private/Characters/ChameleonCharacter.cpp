@@ -11,6 +11,11 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/Controller.h"
 #include "ChameleonControllers/ChameleonPlayerController.h"
+#include "Kismet/KismetSystemLibrary.h"
+#include "CableComponent.h"
+
+
+#include "DrawDebugHelpers.h"
 
 // Sets default values
 AChameleonCharacter::AChameleonCharacter()
@@ -47,7 +52,21 @@ AChameleonCharacter::AChameleonCharacter()
 
 	TransparentTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("TransparentTimelineComponent"));
 
+	StartTrace = CreateDefaultSubobject<USceneComponent>(TEXT("StartTrace"));
+	StartTrace->SetupAttachment(GetRootComponent());
+
+	LedgeTrace = CreateDefaultSubobject<USceneComponent>(TEXT("LedgeTrace"));
+	LedgeTrace->SetupAttachment(GetRootComponent());
+
+	StartGrappleLocation = CreateDefaultSubobject<USceneComponent>(TEXT("StartGrappleLocation"));
+	StartGrappleLocation->SetupAttachment(GetRootComponent());
+
+	CableComponent = CreateDefaultSubobject<UCableComponent>(TEXT("CableComponent"));
+	CableComponent->SetupAttachment(StartGrappleLocation);
+	CableComponent->SetVisibility(false);
+	
 }
+
 
 // Called when the game starts or when spawned
 void AChameleonCharacter::BeginPlay()
@@ -57,19 +76,31 @@ void AChameleonCharacter::BeginPlay()
 	Tags.Add(FName("ChameleonCharacter"));
 	OnTakeAnyDamage.AddDynamic(this, &ThisClass::ReceiveDamage);
 	TransparentTrack.BindDynamic(this, &ThisClass::UpdateTransparentMaterial);
+
+	ChameleonPlayerController = ChameleonPlayerController == nullptr ? Cast<AChameleonPlayerController>(Controller) : ChameleonPlayerController;
+	if (ChameleonPlayerController)
+	{
+		ChameleonPlayerController->SetShowMouseCursor(true);
+	}
+
 	if (TransparentCurve)
 	{
 		TransparentTimeline->AddInterpFloat(TransparentCurve, TransparentTrack);
 	}
-}
 
+}
 
 // Called every frame
 void AChameleonCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-
+	if (bIsClimbing)
+	{
+		CheckClimbSurface();
+	}
 }
+
+#pragma region Input Actions
 
 // Called to bind functionality to input
 void AChameleonCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -89,6 +120,8 @@ void AChameleonCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AChameleonCharacter::Move);
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AChameleonCharacter::Look);
 		EnhancedInputComponent->BindAction(InvisibleAction, ETriggerEvent::Triggered, this, &AChameleonCharacter::InvisibleActionPressed);
+		EnhancedInputComponent->BindAction(ClimbAction, ETriggerEvent::Triggered, this, &AChameleonCharacter::ClimbingLineTrace);
+		EnhancedInputComponent->BindAction(GrappleAction, ETriggerEvent::Triggered, this, &AChameleonCharacter::StartGrapple);
 	}
 	else
 	{
@@ -111,11 +144,18 @@ void AChameleonCharacter::Move(const FInputActionValue& Value)
 
 		// get right vector 
 		const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
-
-		// add movement 
-		AddMovementInput(ForwardDirection, MovementVector.X);
-		// This might not be needed
-		AddMovementInput(RightDirection, MovementVector.Y);
+		if (bIsClimbing)
+		{
+			bool bFacingRight = GetActorForwardVector().X > 0;
+			float ClimbInput = bFacingRight ? MovementVector.X : -MovementVector.X;
+			AddMovementInput(GetActorUpVector(), ClimbInput);
+		}
+		else {
+			// add movement 
+			AddMovementInput(ForwardDirection, MovementVector.X);
+			// This might not be needed
+			AddMovementInput(RightDirection, MovementVector.Y);
+		}		
 	}
 }
 
@@ -126,29 +166,13 @@ void AChameleonCharacter::Look(const FInputActionValue& Value)
 	if (Controller != nullptr)
 	{
 		// add yaw and pitch input to controller
+		
 		AddControllerYawInput(LookAxisVector.X * -1);
 		AddControllerPitchInput(LookAxisVector.Y);
 	}
 }
 
-void AChameleonCharacter::InvisibleActionPressed(const FInputActionValue& Value)
-{
-	if (!bCanPlayerBecomeTransparent) return;
-
-	if (TransparentMaterialInstance_1 && TransparentMaterialInstance_2)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Dynamic material created"));
-		DynamicTransparentMaterialInstance_1 = UMaterialInstanceDynamic::Create(TransparentMaterialInstance_1, this);
-		DynamicTransparentMaterialInstance_2 = UMaterialInstanceDynamic::Create(TransparentMaterialInstance_2, this);
-
-		GetMesh()->SetMaterial(0, DynamicTransparentMaterialInstance_1);
-		GetMesh()->SetMaterial(1, DynamicTransparentMaterialInstance_2);
-		DynamicTransparentMaterialInstance_1->SetScalarParameterValue(TEXT("Opacity"), 1.f);
-		DynamicTransparentMaterialInstance_2->SetScalarParameterValue(TEXT("Opacity"), 1.f);
-	}
-	bIsCharacterTransparent ? StopTransparent() : StartTransparent();
-
-}
+#pragma endregion
 
 void AChameleonCharacter::UpdateHUDHealth()
 {
@@ -190,6 +214,30 @@ void AChameleonCharacter::SetPlayerDeathFinished()
 	bDeathFinished = true;
 }
 
+
+#pragma region Transparent
+
+
+void AChameleonCharacter::InvisibleActionPressed(const FInputActionValue& Value)
+{
+	if (!bCanPlayerBecomeTransparent) return;
+
+	if (TransparentMaterialInstance_1 && TransparentMaterialInstance_2)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Dynamic material created"));
+		DynamicTransparentMaterialInstance_1 = UMaterialInstanceDynamic::Create(TransparentMaterialInstance_1, this);
+		DynamicTransparentMaterialInstance_2 = UMaterialInstanceDynamic::Create(TransparentMaterialInstance_2, this);
+
+		GetMesh()->SetMaterial(0, DynamicTransparentMaterialInstance_1);
+		GetMesh()->SetMaterial(1, DynamicTransparentMaterialInstance_2);
+		DynamicTransparentMaterialInstance_1->SetScalarParameterValue(TEXT("Opacity"), 1.f);
+		DynamicTransparentMaterialInstance_2->SetScalarParameterValue(TEXT("Opacity"), 1.f);
+	}
+	bIsCharacterTransparent ? StopTransparent() : StartTransparent();
+
+}
+
+
 void AChameleonCharacter::UpdateTransparentMaterial(float TransparentValue)
 {
 	if (DynamicTransparentMaterialInstance_1 && DynamicTransparentMaterialInstance_2)
@@ -222,4 +270,209 @@ void AChameleonCharacter::StopTransparent()
 	}
 }
 
+#pragma endregion
 
+#pragma region Climbing
+
+void AChameleonCharacter::ClimbingLineTrace()
+{
+	if (bIsClimbing)
+	{
+		bIsClimbing = false;
+		StopClimbing();
+		return;
+	}
+	FHitResult HitResult;
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(this);
+
+	FVector TraceLength = GetActorForwardVector() * 100.f;
+	FVector End = TraceLength + GetActorLocation();
+	GetWorld()->LineTraceSingleByChannel(HitResult, StartTrace->GetComponentLocation() , End, ECC_Visibility, QueryParams);
+
+	if (HitResult.bBlockingHit)
+	{
+		bIsClimbing = true;
+		GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Flying);
+		GetCharacterMovement()->MaxFlySpeed = 200.f;
+		GetCharacterMovement()->BrakingDecelerationFlying = 1000.f;
+		GetCharacterMovement()->bOrientRotationToMovement = false;
+	}
+}
+
+void AChameleonCharacter::CheckClimbSurface()
+{
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(this);
+
+	FVector LowerStart = StartTrace->GetComponentLocation();
+	FVector LowerEnd = LowerStart + GetActorForwardVector() * 80.f;
+
+	FHitResult LowerHit;
+	bool bLowerHit = GetWorld()->LineTraceSingleByChannel(
+		LowerHit,
+		LowerStart,
+		LowerEnd,
+		ECC_Visibility,
+		QueryParams
+	);
+
+	FVector UpperStart = LedgeTrace->GetComponentLocation();
+	FVector UpperEnd = UpperStart + GetActorForwardVector() * 80.f;
+
+	FHitResult UpperHit;
+	bool bUpperHit = GetWorld()->LineTraceSingleByChannel(
+		UpperHit,
+		UpperStart,
+		UpperEnd,
+		ECC_Visibility,
+		QueryParams
+	);
+
+	// debug
+	DrawDebugLine(GetWorld(), LowerStart, LowerEnd, bLowerHit ? FColor::Green : FColor::Red, false, 0.1f, 0, 2.f);
+	DrawDebugLine(GetWorld(), UpperStart, UpperEnd, bUpperHit ? FColor::Blue : FColor::Yellow, false, 0.1f, 0, 2.f);
+
+
+	if (bLowerHit && !bUpperHit)
+	{
+		StartMantle(LowerHit);
+	}
+	else if (!bLowerHit)
+	{
+		StopClimbing();
+	}
+}
+
+void AChameleonCharacter::StartMantle(const FHitResult& WallHit)
+{
+
+	bIsClimbing = false;
+	StopClimbing();
+
+	FVector TargetLocation =
+		WallHit.ImpactPoint +
+		GetActorForwardVector() * 40.f +
+		FVector(0, 0, LaunchHeightDistance);
+
+	FLatentActionInfo LatentInfo;
+	LatentInfo.CallbackTarget = this;
+	LatentInfo.ExecutionFunction = "OnMantleFinished";
+	LatentInfo.UUID = 1;
+
+
+
+	UKismetSystemLibrary::MoveComponentTo(
+		GetCapsuleComponent(),
+		TargetLocation,
+		GetActorRotation(),
+		true,
+		true,
+		1.f,
+		false,
+		EMoveComponentAction::Move,
+		LatentInfo
+	);
+	PlayClimbMontage();
+	StopClimbing();
+
+}
+
+void AChameleonCharacter::StopClimbing()
+{
+	bIsClimbing = false;
+	GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Walking);
+	GetCharacterMovement()->bOrientRotationToMovement = true;
+	
+}
+
+
+void AChameleonCharacter::PlayClimbMontage()
+{
+	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+	if (AnimInstance && ClimbMontage)
+	{
+		AnimInstance->Montage_Play(ClimbMontage, 1.0f);
+	}
+}
+
+#pragma endregion 
+
+
+#pragma region Grapple
+void AChameleonCharacter::StartGrapple()
+{
+	if (bIsGrapplingActive) return;
+
+	ChameleonPlayerController = ChameleonPlayerController == nullptr ? Cast<AChameleonPlayerController>(Controller) : ChameleonPlayerController;
+
+	if (ChameleonPlayerController == nullptr) return;
+
+	FHitResult HitResult;
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(this);
+	float SphereRadius = 25.f;
+
+	FVector MouseWorldLocation;
+	FVector MouseWorldDirection;
+
+	if (!ChameleonPlayerController->DeprojectMousePositionToWorld(MouseWorldLocation, MouseWorldDirection))
+		return;
+
+	float PlaneY = GetActorLocation().Y;
+
+	float T = (PlaneY - MouseWorldLocation.Y) / MouseWorldDirection.Y;
+	FVector MouseWorldPoint = MouseWorldLocation + MouseWorldDirection * T;
+
+	FVector Start = StartGrappleLocation->GetComponentLocation();
+	FVector Direction = (MouseWorldPoint - Start).GetSafeNormal();
+
+	FVector End = Start + Direction * 3000.f;
+	
+	bool bHit = GetWorld()->SweepSingleByChannel(HitResult, Start, End, FQuat::Identity, ECC_Visibility, FCollisionShape::MakeSphere(25.f), QueryParams);
+
+    if (bHit) 
+    {
+       UE_LOG(LogTemp, Warning, TEXT("Hit"));
+	   FLatentActionInfo LatentInfo;
+	   LatentInfo.CallbackTarget = this;
+	   LatentInfo.UUID = 1;
+	   LatentInfo.Linkage = 0;
+	   LatentInfo.ExecutionFunction = FName("OnGrappleFinished");
+
+	   USceneComponent* GrappleAnchor = NewObject<USceneComponent>(this);
+	   GrappleAnchor->RegisterComponent();
+	   GrappleAnchor->SetWorldLocation(HitResult.ImpactPoint);
+
+	   CableComponent->SetVisibility(true);
+	   CableComponent->SetAttachEndToComponent(GrappleAnchor, NAME_None);
+
+	   bIsGrapplingActive = true;
+
+	   UKismetSystemLibrary::MoveComponentTo(
+		   GetCapsuleComponent(),
+		   HitResult.ImpactPoint,
+		   GetActorRotation(),
+		   false,
+		   false,
+		   0.5f,
+		   true,
+		   EMoveComponentAction::Move,
+		   LatentInfo
+	   );
+    } 
+	/*DrawDebugSphere(GetWorld(), StartGrappleLocation->GetComponentLocation(), SphereRadius, 12, FColor::Blue, false, 2.f);
+	DrawDebugSphere(GetWorld(), End, SphereRadius, 12, bHit ? FColor::Red : FColor::Green, false, 2.f);
+	DrawDebugLine(GetWorld(), StartGrappleLocation->GetComponentLocation(), End, FColor::White, false, 2.f, 0, 2.f);*/
+
+}
+
+
+void AChameleonCharacter::OnGrappleFinished()
+{
+	CableComponent->SetVisibility(false);
+	CableComponent->SetAttachEndTo(nullptr, NAME_None);
+	bIsGrapplingActive = false;
+}
+
+#pragma endregion 
