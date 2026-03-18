@@ -151,7 +151,7 @@ public:
 	/*
 	* Grapple
 	*/
-	void StartGrapple();
+
 
 	UPROPERTY(VisibleAnywhere)
 	USceneComponent* StartGrappleLocation;
@@ -160,6 +160,18 @@ public:
 	UCableComponent* CableComponent;
 
 	bool bIsGrapplingActive = false;
+	bool bIsChargingGrapple = false;
+	FVector MouseDirection;
+	float GrappleChargeTime = 0.f;
+	float MaxChargeTime = 2.f;
+	float MaxGrappleDistance = 3000.f;
+	float CurrentGrappleDistance = 0.f;
+
+	void StartGrappleCharge();
+	void ReleaseGrappleCharge();
+	void StartGrapple(float Distance);
+	void UpdateGrapplePreview();
+	void CalculateMouseDirection();
 
 	UFUNCTION()
 	void OnGrappleFinished();
