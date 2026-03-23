@@ -98,6 +98,15 @@ void AChameleonCharacter::Tick(float DeltaTime)
 	{
 		CheckClimbSurface();
 	}
+	if (bIsChargingGrapple)
+	{
+		GrappleChargeTime += DeltaTime;
+
+		float Alpha = FMath::Clamp(GrappleChargeTime / MaxChargeTime, 0.f, 1.f);
+		//CurrentGrappleDistance = FMath::Lerp(0.f, MaxGrappleDistance, Alpha);
+		CurrentGrappleDistance = Alpha * MaxGrappleDistance;
+		UpdateGrapplePreview();
+	}
 }
 
 #pragma region Input Actions
@@ -121,7 +130,8 @@ void AChameleonCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AChameleonCharacter::Look);
 		EnhancedInputComponent->BindAction(InvisibleAction, ETriggerEvent::Triggered, this, &AChameleonCharacter::InvisibleActionPressed);
 		EnhancedInputComponent->BindAction(ClimbAction, ETriggerEvent::Triggered, this, &AChameleonCharacter::ClimbingLineTrace);
-		EnhancedInputComponent->BindAction(GrappleAction, ETriggerEvent::Triggered, this, &AChameleonCharacter::StartGrapple);
+		EnhancedInputComponent->BindAction(GrappleAction, ETriggerEvent::Started, this, &AChameleonCharacter::StartGrappleCharge);
+		EnhancedInputComponent->BindAction(GrappleAction, ETriggerEvent::Completed, this, &AChameleonCharacter::ReleaseGrappleCharge);
 	}
 	else
 	{
@@ -400,7 +410,24 @@ void AChameleonCharacter::PlayClimbMontage()
 
 
 #pragma region Grapple
-void AChameleonCharacter::StartGrapple()
+void AChameleonCharacter::StartGrappleCharge()
+{
+	if (bIsGrapplingActive) return;
+
+	bIsChargingGrapple = true;
+	GrappleChargeTime = 0.f;
+
+	CalculateMouseDirection();
+	SetActorRotation(FRotationMatrix::MakeFromX(MouseDirection).Rotator());
+}
+void AChameleonCharacter::ReleaseGrappleCharge()
+{
+	if (!bIsChargingGrapple) return;
+
+	bIsChargingGrapple = false;
+	StartGrapple(CurrentGrappleDistance);
+}
+void AChameleonCharacter::StartGrapple(float Distance)
 {
 	if (bIsGrapplingActive) return;
 
@@ -413,21 +440,8 @@ void AChameleonCharacter::StartGrapple()
 	QueryParams.AddIgnoredActor(this);
 	float SphereRadius = 25.f;
 
-	FVector MouseWorldLocation;
-	FVector MouseWorldDirection;
-
-	if (!ChameleonPlayerController->DeprojectMousePositionToWorld(MouseWorldLocation, MouseWorldDirection))
-		return;
-
-	float PlaneY = GetActorLocation().Y;
-
-	float T = (PlaneY - MouseWorldLocation.Y) / MouseWorldDirection.Y;
-	FVector MouseWorldPoint = MouseWorldLocation + MouseWorldDirection * T;
-
 	FVector Start = StartGrappleLocation->GetComponentLocation();
-	FVector Direction = (MouseWorldPoint - Start).GetSafeNormal();
-
-	FVector End = Start + Direction * 3000.f;
+	FVector End = Start + MouseDirection * CurrentGrappleDistance;
 	
 	bool bHit = GetWorld()->SweepSingleByChannel(HitResult, Start, End, FQuat::Identity, ECC_Visibility, FCollisionShape::MakeSphere(25.f), QueryParams);
 
@@ -448,7 +462,7 @@ void AChameleonCharacter::StartGrapple()
 	   CableComponent->SetAttachEndToComponent(GrappleAnchor, NAME_None);
 
 	   bIsGrapplingActive = true;
-
+	   CableComponent->SetVisibility(true);
 	   UKismetSystemLibrary::MoveComponentTo(
 		   GetCapsuleComponent(),
 		   HitResult.ImpactPoint,
@@ -467,9 +481,40 @@ void AChameleonCharacter::StartGrapple()
 
 }
 
+void AChameleonCharacter::UpdateGrapplePreview()
+{
+	FVector Start = StartGrappleLocation->GetComponentLocation();
+
+	CalculateMouseDirection();
+
+	FVector End = Start + MouseDirection * CurrentGrappleDistance;
+
+	DrawDebugSphere(GetWorld(), End, 25.f, 12, FColor::Green, false, 0.f);
+	DrawDebugLine(GetWorld(), Start, End, FColor::Green, false, 0.f, 0, 2.f);
+}
+
+void AChameleonCharacter::CalculateMouseDirection()
+{
+	FVector Start = StartGrappleLocation->GetComponentLocation();
+	FVector MouseWorldLocation;
+	FVector MouseWorldDirection;
+
+	if (!ChameleonPlayerController->DeprojectMousePositionToWorld(MouseWorldLocation, MouseWorldDirection))
+		return;
+
+	float PlaneY = GetActorLocation().Y;
+
+	float T = (PlaneY - MouseWorldLocation.Y) / MouseWorldDirection.Y;
+
+	FVector MouseWorldPoint = MouseWorldLocation + MouseWorldDirection * T;
+
+	MouseDirection = (MouseWorldPoint - Start).GetSafeNormal();
+}
+
 
 void AChameleonCharacter::OnGrappleFinished()
 {
+
 	CableComponent->SetVisibility(false);
 	CableComponent->SetAttachEndTo(nullptr, NAME_None);
 	bIsGrapplingActive = false;
