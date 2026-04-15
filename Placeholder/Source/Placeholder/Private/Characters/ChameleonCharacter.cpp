@@ -61,10 +61,6 @@ AChameleonCharacter::AChameleonCharacter()
 	StartGrappleLocation = CreateDefaultSubobject<USceneComponent>(TEXT("StartGrappleLocation"));
 	StartGrappleLocation->SetupAttachment(GetRootComponent());
 
-	CableComponent = CreateDefaultSubobject<UCableComponent>(TEXT("CableComponent"));
-	CableComponent->SetupAttachment(StartGrappleLocation);
-	CableComponent->SetVisibility(false);
-	
 }
 
 
@@ -107,6 +103,14 @@ void AChameleonCharacter::Tick(float DeltaTime)
 		CurrentGrappleDistance = Alpha * MaxGrappleDistance;
 		UpdateGrapplePreview();
 	}
+
+	if (bIsHooked)
+	{
+		UpdateHookedTongue();
+		//UpdateHookedHang();
+		UpdateSwing(DeltaTime);
+	}
+
 }
 
 #pragma region Input Actions
@@ -126,6 +130,8 @@ void AChameleonCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
 	{
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &ACharacter::Jump);
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
+		EnhancedInputComponent->BindAction(ClimbTongueAction, ETriggerEvent::Triggered, this, &AChameleonCharacter::ClimbTongue);
+		EnhancedInputComponent->BindAction(ClimbTongueAction, ETriggerEvent::Completed, this, &AChameleonCharacter::ClimbTongue);
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AChameleonCharacter::Move);
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AChameleonCharacter::Look);
 		EnhancedInputComponent->BindAction(InvisibleAction, ETriggerEvent::Triggered, this, &AChameleonCharacter::InvisibleActionPressed);
@@ -143,30 +149,61 @@ void AChameleonCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
 void AChameleonCharacter::Move(const FInputActionValue& Value)
 {
 	FVector2D MovementVector = Value.Get<FVector2D>();
+
+	if (bIsHooked)
+	{
+		SwingInputValue = MovementVector.X;
+		return;
+	}
+
+	SwingInputValue = 0.f;
+
 	if (GetController() != nullptr)
 	{
-		// find out which way is forward
 		const FRotator Rotation = GetController()->GetControlRotation();
 		const FRotator YawRotation(0, Rotation.Yaw, 0);
 
-		// get forward vector
 		const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
-
-		// get right vector 
 		const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+
 		if (bIsClimbing)
 		{
 			bool bFacingRight = GetActorForwardVector().X > 0;
 			float ClimbInput = bFacingRight ? MovementVector.X : -MovementVector.X;
 			AddMovementInput(GetActorUpVector(), ClimbInput);
 		}
-		else {
-			// add movement 
+		else
+		{
 			AddMovementInput(ForwardDirection, MovementVector.X);
-			// This might not be needed
-			AddMovementInput(RightDirection, MovementVector.Y);
-		}		
+			//AddMovementInput(RightDirection, MovementVector.Y);
+		}
 	}
+}
+
+void AChameleonCharacter::ClimbTongue(const FInputActionValue& Value)
+{
+	float InputValue = Value.Get<float>();
+
+	if (!bIsHooked) return;
+
+	GrappleRopeLength -= InputValue * RopeClimbSpeed * GetWorld()->GetDeltaSeconds();
+	GrappleRopeLength = FMath::Clamp(GrappleRopeLength, MinRopeLength, MaxRopeLength);
+
+	FVector PlayerLocation = GetActorLocation();
+	PlayerLocation.Y = GrappleAnchorPoint.Y;
+
+	FVector RopeVector = PlayerLocation - GrappleAnchorPoint;
+	RopeVector.Y = 0.f;
+
+	float CurrentDistance = RopeVector.Size();
+	if (CurrentDistance <= KINDA_SMALL_NUMBER) return;
+
+	FVector RopeDirection = RopeVector / CurrentDistance;
+
+	FVector NewLocation = GrappleAnchorPoint + RopeDirection * GrappleRopeLength;
+	NewLocation.Y = GetActorLocation().Y;
+
+	SetActorLocation(NewLocation, true);
 }
 
 void AChameleonCharacter::Look(const FInputActionValue& Value)
@@ -406,10 +443,12 @@ void AChameleonCharacter::PlayClimbMontage()
 	}
 }
 
+
 #pragma endregion 
 
 
 #pragma region Grapple
+
 void AChameleonCharacter::StartGrappleCharge()
 {
 	if (bIsGrapplingActive) return;
@@ -418,69 +457,146 @@ void AChameleonCharacter::StartGrappleCharge()
 	GrappleChargeTime = 0.f;
 
 	CalculateMouseDirection();
-	SetActorRotation(FRotationMatrix::MakeFromX(MouseDirection).Rotator());
-}
-void AChameleonCharacter::ReleaseGrappleCharge()
-{
-	if (!bIsChargingGrapple) return;
 
-	bIsChargingGrapple = false;
-	StartGrapple(CurrentGrappleDistance);
+	TongueStartLocation = GetMesh()->GetBoneLocation(TEXT("tongue"));
+
+	FVector AdjustedDirection = MouseDirection;
+	AdjustedDirection.Y = 0.f;
+	AdjustedDirection.Normalize();
+
+	TongueTargetLocation = TongueStartLocation + AdjustedDirection * CurrentGrappleDistance;
+	TongueTargetLocation.Y = TongueStartLocation.Y;
+
+	bTongueActive = true;
+
+	FVector Direction = TongueTargetLocation - TongueStartLocation;
+	Direction.Y = 0.f;
+	Direction.Normalize();
+
+	FRotator TongueRotation = Direction.Rotation();
+	TongueRotation += FRotator(0.f, 0.f, 90.f);
+
+	CtrlTongueTransform.SetLocation(TongueTargetLocation);
+	CtrlTongueTransform.SetRotation(TongueRotation.Quaternion());
+	CtrlTongueTransform.SetScale3D(FVector(1.f));
 }
+
 void AChameleonCharacter::StartGrapple(float Distance)
 {
-	if (bIsGrapplingActive) return;
+	CalculateMouseDirection();
 
-	ChameleonPlayerController = ChameleonPlayerController == nullptr ? Cast<AChameleonPlayerController>(Controller) : ChameleonPlayerController;
+	FVector Start = StartGrappleLocation->GetComponentLocation();
+	FVector End = Start + MouseDirection * Distance;
 
-	if (ChameleonPlayerController == nullptr) return;
 
 	FHitResult HitResult;
 	FCollisionQueryParams QueryParams;
 	QueryParams.AddIgnoredActor(this);
-	float SphereRadius = 25.f;
 
-	FVector Start = StartGrappleLocation->GetComponentLocation();
-	FVector End = Start + MouseDirection * CurrentGrappleDistance;
-	
-	bool bHit = GetWorld()->SweepSingleByChannel(HitResult, Start, End, FQuat::Identity, ECC_Visibility, FCollisionShape::MakeSphere(25.f), QueryParams);
+	bool bHit = GetWorld()->SweepSingleByChannel(
+		HitResult,
+		Start,
+		End,
+		FQuat::Identity,
+		ECC_Visibility,
+		FCollisionShape::MakeSphere(25.f),
+		QueryParams
+	);
 
-    if (bHit) 
-    {
-       UE_LOG(LogTemp, Warning, TEXT("Hit"));
-	   FLatentActionInfo LatentInfo;
-	   LatentInfo.CallbackTarget = this;
-	   LatentInfo.UUID = 1;
-	   LatentInfo.Linkage = 0;
-	   LatentInfo.ExecutionFunction = FName("OnGrappleFinished");
+	if (bHit)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Trace HIT actor: %s"), *GetNameSafe(HitResult.GetActor()));
 
-	   USceneComponent* GrappleAnchor = NewObject<USceneComponent>(this);
-	   GrappleAnchor->RegisterComponent();
-	   GrappleAnchor->SetWorldLocation(HitResult.ImpactPoint);
+		if (HitResult.GetActor() && HitResult.GetActor()->ActorHasTag("GrapplePoint"))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Actor has GrapplePoint tag"));
 
-	   CableComponent->SetVisibility(true);
-	   CableComponent->SetAttachEndToComponent(GrappleAnchor, NAME_None);
+			bIsHooked = true;
+			bTongueActive = true;
+			bIsGrapplingActive = true;
+			HookedLocation = HitResult.ImpactPoint;
 
-	   bIsGrapplingActive = true;
-	   CableComponent->SetVisibility(true);
-	   UKismetSystemLibrary::MoveComponentTo(
-		   GetCapsuleComponent(),
-		   HitResult.ImpactPoint,
-		   GetActorRotation(),
-		   false,
-		   false,
-		   0.5f,
-		   true,
-		   EMoveComponentAction::Move,
-		   LatentInfo
-	   );
-    } 
-	/*DrawDebugSphere(GetWorld(), StartGrappleLocation->GetComponentLocation(), SphereRadius, 12, FColor::Blue, false, 2.f);
-	DrawDebugSphere(GetWorld(), End, SphereRadius, 12, bHit ? FColor::Red : FColor::Green, false, 2.f);
-	DrawDebugLine(GetWorld(), StartGrappleLocation->GetComponentLocation(), End, FColor::White, false, 2.f, 0, 2.f);*/
+			GrappleAnchorPoint = HookedLocation;
+			GrappleAnchorPoint.Y = GetActorLocation().Y;
 
+			float InitialDistanceToHook = FVector::Distance(GetActorLocation(), GrappleAnchorPoint);
+			GrappleRopeLength = InitialDistanceToHook * 0.5f;
+			GrappleRopeLength = FMath::Max(GrappleRopeLength, 100.f);
+
+			FVector LaunchDirection = HookedLocation - GetActorLocation();
+			LaunchDirection.Y = 0.f;
+			LaunchDirection.Normalize();
+
+			FVector LaunchVelocity = LaunchDirection * LaunchStrength;
+			LaunchVelocity.Z += 150.f; 
+
+			LaunchCharacter(LaunchVelocity, true, true);
+
+			HangLocation = HookedLocation;
+			HangLocation.Y = GetActorLocation().Y;
+			HangLocation.Z -= HangDistanceBelowHook;
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Actor does NOT have GrapplePoint tag"));
+
+			bIsHooked = false;
+			bTongueActive = false;
+			bIsGrapplingActive = false;
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Trace MISSED"));
+		bIsHooked = false;
+		bTongueActive = false;
+		bIsGrapplingActive = false;
+	}
 }
 
+void AChameleonCharacter::UpdateSwing(float DeltaTime)
+{
+	if (!bIsHooked) return;
+
+	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
+	if (MoveComp == nullptr) return;
+
+	MoveComp->SetMovementMode(MOVE_Falling);
+
+	FVector PlayerLocation = GetActorLocation();
+	PlayerLocation.Y = GrappleAnchorPoint.Y;
+
+	FVector RopeVector = PlayerLocation - GrappleAnchorPoint;
+	RopeVector.Y = 0.f;
+
+	float CurrentDistance = RopeVector.Size();
+	if (CurrentDistance <= KINDA_SMALL_NUMBER) return;
+
+	FVector RopeDirection = RopeVector / CurrentDistance;
+
+	FVector Velocity = MoveComp->Velocity;
+	Velocity.Y = 0.f;
+
+	if (CurrentDistance > GrappleRopeLength)
+	{
+		float RadialSpeed = FVector::DotProduct(Velocity, RopeDirection);
+		if (RadialSpeed > 0.f)
+		{
+			Velocity -= RopeDirection * RadialSpeed;
+		}
+	}
+
+	if (!FMath::IsNearlyZero(SwingInputValue))
+	{
+		FVector Tangent(-RopeDirection.Z, 0.f, RopeDirection.X);
+		Tangent.Normalize();
+
+		Velocity += Tangent * SwingInputValue * SwingForce * DeltaTime;
+	}
+
+	Velocity.Y = 0.f;
+	MoveComp->Velocity = Velocity;
+}
 void AChameleonCharacter::UpdateGrapplePreview()
 {
 	FVector Start = StartGrappleLocation->GetComponentLocation();
@@ -489,8 +605,64 @@ void AChameleonCharacter::UpdateGrapplePreview()
 
 	FVector End = Start + MouseDirection * CurrentGrappleDistance;
 
+	TongueStartLocation = GetMesh()->GetBoneLocation(TEXT("tongue"));
+
+	FVector AdjustedDirection = MouseDirection;
+	AdjustedDirection.Y = 0.f;
+	AdjustedDirection.Normalize();
+
+	TongueTargetLocation = TongueStartLocation + AdjustedDirection * CurrentGrappleDistance;
+	TongueTargetLocation.Y = TongueStartLocation.Y;
+
+	FVector Direction = TongueTargetLocation - TongueStartLocation;
+	Direction.Y = 0.f;
+	Direction.Normalize();
+
+	FRotator TongueRotation = Direction.Rotation();
+	TongueRotation += FRotator(0.f, 0.f, 90.f);
+
+
+	CtrlTongueTransform.SetLocation(TongueTargetLocation);
+	CtrlTongueTransform.SetRotation(TongueRotation.Quaternion());
+	CtrlTongueTransform.SetScale3D(FVector(1.f));
+
 	DrawDebugSphere(GetWorld(), End, 25.f, 12, FColor::Green, false, 0.f);
 	DrawDebugLine(GetWorld(), Start, End, FColor::Green, false, 0.f, 0, 2.f);
+}
+
+void AChameleonCharacter::UpdateHookedTongue()
+{
+	//if (!bIsHooked) return;
+
+	TongueStartLocation = GetMesh()->GetBoneLocation(TEXT("tongue"));
+	TongueTargetLocation = HookedLocation;
+
+	TongueTargetLocation.Y = TongueStartLocation.Y;
+
+	FVector Direction = TongueTargetLocation - TongueStartLocation;
+	Direction.Y = 0.f;
+	Direction.Normalize();
+
+	FRotator TongueRotation = Direction.Rotation();
+	TongueRotation += FRotator(0.f, 0.f, 90.f);
+
+	CtrlTongueTransform.SetLocation(TongueTargetLocation);
+	CtrlTongueTransform.SetRotation(TongueRotation.Quaternion());
+	CtrlTongueTransform.SetScale3D(FVector(1.f));
+
+	DrawDebugSphere(GetWorld(), HookedLocation, 20.f, 12, FColor::Red, false, 0.f);
+	DrawDebugLine(GetWorld(), TongueStartLocation, HookedLocation, FColor::Red, false, 0.f, 0, 2.f);
+}
+
+void AChameleonCharacter::UpdateHookedHang()
+{
+	if (!bIsHooked) return;
+
+	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
+	if (MoveComp == nullptr) return;
+
+	MoveComp->SetMovementMode(MOVE_Falling);
+
 }
 
 void AChameleonCharacter::CalculateMouseDirection()
@@ -499,25 +671,60 @@ void AChameleonCharacter::CalculateMouseDirection()
 	FVector MouseWorldLocation;
 	FVector MouseWorldDirection;
 
+	ChameleonPlayerController = ChameleonPlayerController == nullptr
+		? Cast<AChameleonPlayerController>(Controller)
+		: ChameleonPlayerController;
+
+	if (ChameleonPlayerController == nullptr) return;
+
 	if (!ChameleonPlayerController->DeprojectMousePositionToWorld(MouseWorldLocation, MouseWorldDirection))
 		return;
+
+	if (FMath::IsNearlyZero(MouseWorldDirection.Y))
+	{
+		return;
+	}
 
 	float PlaneY = GetActorLocation().Y;
 
 	float T = (PlaneY - MouseWorldLocation.Y) / MouseWorldDirection.Y;
 
 	FVector MouseWorldPoint = MouseWorldLocation + MouseWorldDirection * T;
+	MouseWorldPoint.Y = Start.Y;
 
-	MouseDirection = (MouseWorldPoint - Start).GetSafeNormal();
+	MouseDirection = MouseWorldPoint - Start;
+	MouseDirection.Y = 0.f;
+	MouseDirection.Normalize();
 }
 
+void AChameleonCharacter::ReleaseGrappleCharge()
+{
+	if (bIsHooked)
+	{
+		OnGrappleFinished();
+		return;
+	}
 
+	if (!bIsChargingGrapple) return;
+
+	bIsChargingGrapple = false;
+
+	StartGrapple(CurrentGrappleDistance);
+}
 void AChameleonCharacter::OnGrappleFinished()
 {
-
-	CableComponent->SetVisibility(false);
-	CableComponent->SetAttachEndTo(nullptr, NAME_None);
 	bIsGrapplingActive = false;
+	bIsChargingGrapple = false;
+	bTongueActive = false;
+	bIsHooked = false;
+
+	SwingInputValue = 0.f;
+	GrappleAnchorPoint = FVector::ZeroVector;
+	GrappleRopeLength = 0.f;
+
+	GetCharacterMovement()->SetMovementMode(MOVE_Falling);
+
+	CtrlTongueTransform = FTransform::Identity;
 }
 
 #pragma endregion 

@@ -50,7 +50,8 @@ void AEnemyBase::BeginPlay()
 		PawnSensingComponent->OnSeePawn.AddDynamic(this, &ThisClass::PawnSensed);
 	}
 	EnemyController = Cast<AAIController>(GetController());
-	MoveToTarget(PatrolTarget);	
+	PatrolTarget = ChoosePatrolTarget();
+	GetWorldTimerManager().SetTimer(PatrolTimer, this, &ThisClass::PatrolTimerFinished, 5.f);
 
 }
 
@@ -78,8 +79,13 @@ void AEnemyBase::CheckPatrolTarget()
 {
 	if (InTargetRange(PatrolTarget, PatrolRadius))
 	{
-		PatrolTarget = ChoosePatrolTarget();
-		GetWorldTimerManager().SetTimer(PatrolTimer, this, &ThisClass::PatrolTimerFinished, 5.f);
+		if (!GetWorldTimerManager().IsTimerActive(PatrolTimer))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Setting timer"));
+			PatrolTarget = ChoosePatrolTarget();
+			GetWorldTimerManager().SetTimer(PatrolTimer, this, &ThisClass::PatrolTimerFinished, 5.f);
+		}
+
 	}
 }
 
@@ -111,6 +117,7 @@ void AEnemyBase::CheckCombatTarget()
 bool AEnemyBase::InTargetRange(AActor* Target, double Radius)
 {
 	if (Target == nullptr) return false;
+
 	const double DistanceToTarget = (Target->GetActorLocation() - GetActorLocation()).Size();
 	return DistanceToTarget <= Radius;
 }

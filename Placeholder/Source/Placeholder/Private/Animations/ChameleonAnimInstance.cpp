@@ -32,4 +32,8 @@ void UChameleonAnimInstance::NativeUpdateAnimation(float DeltaTime)
 	bIsPlayerDead = PlayerCharacter->IsPlayerDeath();
 	bIsPlayerDeadFinished = PlayerCharacter->IsPlayerDeathFinished();
 	bIsClimbing = PlayerCharacter->IsCharacterClimbing();
+	bTongueActive = PlayerCharacter->bTongueActive;
+	TongueTargetLocation = PlayerCharacter->TongueTargetLocation;
+	TongueStartLocation = PlayerCharacter->TongueStartLocation;
+	CtrlTongueTransform = PlayerCharacter->CtrlTongueTransform;
 }
