@@ -68,8 +68,12 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Input")
 	UInputAction* GrappleAction;
 
+	UPROPERTY(EditAnywhere, Category = "Input")
+	UInputAction* ClimbTongueAction;
+
 
 	void Move(const FInputActionValue& Value);
+	void ClimbTongue(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
 	void InvisibleActionPressed(const FInputActionValue& Value);
 
@@ -153,14 +157,56 @@ public:
 	*/
 
 
+	
+
+	void UpdateSwing(float DeltaTime);
+	void ReleaseSwing();
+
+	FTimerHandle GrappleTimerHandle;
 	UPROPERTY(VisibleAnywhere)
 	USceneComponent* StartGrappleLocation;
 
-	UPROPERTY(VisibleAnywhere, Category = "Cable")
-	UCableComponent* CableComponent;
+	UPROPERTY(EditAnywhere, Category = "Grapple Swing")
+	float RopeClimbSpeed = 300.f;
+
+	UPROPERTY(EditAnywhere, Category = "Grapple Swing")
+	float MinRopeLength = 100.f;
+
+	UPROPERTY(EditAnywhere, Category = "Grapple Swing")
+	float MaxRopeLength = 1200.f;
+
+	UPROPERTY(EditAnywhere, Category = "Grapple Swing")
+	float SwingForce = 1900.f;
+
+	UPROPERTY(EditAnywhere, Category = "Grapple Swing")
+	float MaxSwingSpeed = 300.f;
+
+	float RopeClimbInputValue = 0.f;
+
+	FVector GrappleAnchorPoint = FVector::ZeroVector;
+	float GrappleRopeLength = 0.f;
+	float SwingInputValue = 0.f;
+
+	UPROPERTY(EditAnywhere, Category = "Grapple")
+	float HangDistanceBelowHook = 150.f;
+
+	FVector HangLocation = FVector::ZeroVector;
+
+	bool bIsHooked = false;
+	FVector HookedLocation = FVector::ZeroVector;
+	void UpdateHookedTongue();
+	void UpdateHookedHang();
+
+	UPROPERTY(EditAnywhere)
+	float LaunchStrength = 800.f;
+
 
 	bool bIsGrapplingActive = false;
 	bool bIsChargingGrapple = false;
+	bool bTongueActive = false;
+	FVector TongueTargetLocation;
+	FVector TongueStartLocation;
+	FTransform CtrlTongueTransform;
 	FVector MouseDirection;
 	float GrappleChargeTime = 0.f;
 	float MaxChargeTime = 2.f;
