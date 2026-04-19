@@ -27,7 +27,7 @@ AEnemyBase::AEnemyBase()
 	bUseControllerRotationRoll = false;
 
 	GetCharacterMovement()->bOrientRotationToMovement = true;
-	GetCharacterMovement()->MaxWalkSpeed = 200.f;
+	GetCharacterMovement()->MaxWalkSpeed = 400.f;
 
 	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
 }
@@ -202,7 +202,7 @@ void AEnemyBase::LoseInterest()
 {
 	CombatTarget = nullptr;
 	EnemyState = EEnemyState::EES_Patrolling;
-	GetCharacterMovement()->MaxWalkSpeed = 200.f;
+	GetCharacterMovement()->MaxWalkSpeed = 400.f;
 
 	MoveToTarget(ChoosePatrolTarget());
 	GetWorldTimerManager().SetTimer(PatrolTimer, this, &ThisClass::PatrolTimerFinished, 5.f);

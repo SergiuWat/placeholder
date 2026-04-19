@@ -136,7 +136,6 @@ void AChameleonCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
 		EnhancedInputComponent->BindAction(ClimbTongueAction, ETriggerEvent::Completed, this, &AChameleonCharacter::ClimbTongue);
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AChameleonCharacter::Move);
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AChameleonCharacter::Look);
-		EnhancedInputComponent->BindAction(InvisibleAction, ETriggerEvent::Triggered, this, &AChameleonCharacter::InvisibleActionPressed);
 		EnhancedInputComponent->BindAction(ClimbAction, ETriggerEvent::Triggered, this, &AChameleonCharacter::ClimbingLineTrace);
 		EnhancedInputComponent->BindAction(GrappleAction, ETriggerEvent::Started, this, &AChameleonCharacter::StartGrappleCharge);
 		EnhancedInputComponent->BindAction(GrappleAction, ETriggerEvent::Completed, this, &AChameleonCharacter::ReleaseGrappleCharge);
@@ -269,7 +268,7 @@ void AChameleonCharacter::SetPlayerDeathFinished()
 #pragma region Transparent
 
 
-void AChameleonCharacter::InvisibleActionPressed(const FInputActionValue& Value)
+void AChameleonCharacter::InvisibleActionPressed()
 {
 	if (!bCanPlayerBecomeTransparent) return;
 
