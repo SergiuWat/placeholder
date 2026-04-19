@@ -34,6 +34,7 @@ void AATransparencyZone::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent
 	if (Player)
 	{
 		Player->SetCanPlayerBecomeTransparent(true);
+		Player->InvisibleActionPressed();
 	}
 }
 

@@ -82,7 +82,7 @@ public:
 	void Move(const FInputActionValue& Value);
 	void ClimbTongue(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
-	void InvisibleActionPressed(const FInputActionValue& Value);
+	void InvisibleActionPressed();
 	void TakeKeyActionPressed(const FInputActionValue& Value);
 	/** Hud Functions */
 
