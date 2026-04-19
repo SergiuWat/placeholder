@@ -58,7 +58,10 @@ public:
 
 	void CheckPatrolTarget();
 
+	UPROPERTY(EditAnywhere)
 	float Health = 100.f;
+
+	UPROPERTY(EditAnywhere)
 	float MaxHealth = 100.f;
 
 	bool bIsDead = false;
