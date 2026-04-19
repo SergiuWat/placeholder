@@ -17,7 +17,8 @@ struct FInputActionValue;
 class AChameleonPlayerController;
 class UAnimMontage;
 class UCableComponent;
-
+class USoundBase;
+class UAudioComponent;
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnTransparencyChanged, bool);
 
@@ -219,6 +220,12 @@ public:
 	float MaxGrappleDistance = 3000.f;
 	float CurrentGrappleDistance = 0.f;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Audio")
+	USoundBase* TongueBuildUpSound;
+
+	UPROPERTY()
+	UAudioComponent* TongueBuildUpAudioComp;
+
 	void StartGrappleCharge();
 	void ReleaseGrappleCharge();
 	void StartGrapple(float Distance);
@@ -250,6 +257,9 @@ public:
 	float TongueShootCooldown = 0.25f;
 
 	bool bCanShootTongue = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Audio")
+	USoundBase* TongueShootSound;
 
 	FTimerHandle TongueShootTimerHandle;
 
@@ -283,7 +293,10 @@ private:
 	UPROPERTY(VisibleAnywhere, Category = "Player Starts")
 	float Health = 100.f;
 
+	UPROPERTY(BlueprintReadWrite, Category = "Player State", meta = (AllowPrivateAccess = "true"))
 	bool bIsPlayerDead = false;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Player State", meta = (AllowPrivateAccess = "true"))
 	bool bDeathFinished = false;
 
 public: // This public should be used for getters and setters or inlinefunctions
