@@ -58,6 +58,13 @@ public:
 
 	void CheckPatrolTarget();
 
+	float Health = 100.f;
+	float MaxHealth = 100.f;
+
+	bool bIsDead = false;
+	UFUNCTION()
+	void ReceiveDamage(AActor* DamageActor, float Damage, const UDamageType* DamageType, class AController* InstigatorController, AActor* DamageCause);
+
 	/*
 	*  Play Animation Montages
 	*/
