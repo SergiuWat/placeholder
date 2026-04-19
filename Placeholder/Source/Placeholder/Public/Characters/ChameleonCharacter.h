@@ -71,12 +71,19 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Input")
 	UInputAction* ClimbTongueAction;
 
+	UPROPERTY(EditAnywhere, Category = "Input")
+	UInputAction* TakeKeyAction;
+
+
+	UPROPERTY(EditAnywhere, Category = "Input")
+	UInputAction* ShooTongueAction;
+
 
 	void Move(const FInputActionValue& Value);
 	void ClimbTongue(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
 	void InvisibleActionPressed(const FInputActionValue& Value);
-
+	void TakeKeyActionPressed(const FInputActionValue& Value);
 	/** Hud Functions */
 
 	void UpdateHUDHealth();
@@ -195,7 +202,6 @@ public:
 	bool bIsHooked = false;
 	FVector HookedLocation = FVector::ZeroVector;
 	void UpdateHookedTongue();
-	void UpdateHookedHang();
 
 	UPROPERTY(EditAnywhere)
 	float LaunchStrength = 800.f;
@@ -221,6 +227,43 @@ public:
 
 	UFUNCTION()
 	void OnGrappleFinished();
+
+	void UpdateTongueToWorldTarget(const FVector& WorldTargetLocation);
+	void UpdateFacingFromMouseDirection();
+
+	/*
+	*	Shoot with tongue
+	*/
+
+	void ShootTonguePressed();
+
+	UPROPERTY(EditAnywhere, Category = "Tongue Attack")
+	float TongueShootDistance = 700.f;
+
+	UPROPERTY(EditAnywhere, Category = "Tongue Attack")
+	float TongueDamage = 50.f;
+
+	UPROPERTY(EditAnywhere, Category = "Tongue Attack")
+	float TongueResetDelay = 0.15f;
+
+	UPROPERTY(EditAnywhere, Category = "Tongue Attack")
+	float TongueShootCooldown = 0.25f;
+
+	bool bCanShootTongue = true;
+
+	FTimerHandle TongueShootTimerHandle;
+
+	void ResetTongueAttack();
+	/*
+	*	Take key
+	*/
+	FTimerHandle KeyTimerHandle;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Key")
+	bool bHasKey = false;
+
+	UPROPERTY(VisibleAnywhere)
+	FTransform InitialTongueTransforms;
 
 protected:
 	// Called when the game starts or when spawned

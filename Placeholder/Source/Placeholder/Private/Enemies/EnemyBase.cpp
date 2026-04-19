@@ -37,7 +37,7 @@ AEnemyBase::AEnemyBase()
 void AEnemyBase::BeginPlay()
 {
 	Super::BeginPlay();
-
+	OnTakeAnyDamage.AddDynamic(this, &ThisClass::ReceiveDamage);
 	CachedPlayer = Cast<AChameleonCharacter>(UGameplayStatics::GetPlayerPawn(this, 0));
 
 	if(CachedPlayer)
@@ -86,6 +86,20 @@ void AEnemyBase::CheckPatrolTarget()
 			GetWorldTimerManager().SetTimer(PatrolTimer, this, &ThisClass::PatrolTimerFinished, 5.f);
 		}
 
+	}
+}
+
+void AEnemyBase::ReceiveDamage(AActor* DamageActor, float Damage, const UDamageType* DamageType, AController* InstigatorController, AActor* DamageCause)
+{
+	if (bIsDead) return;
+	UE_LOG(LogTemp, Warning, TEXT("Enemy has been hit"));
+	Health = FMath::Clamp(Health - Damage, 0.f, MaxHealth);
+	if (Health == 0.f)
+	{
+		bIsDead = true;
+		GetCharacterMovement()->DisableMovement();
+
+		Destroy();
 	}
 }
 

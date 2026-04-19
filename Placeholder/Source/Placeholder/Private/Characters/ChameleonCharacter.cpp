@@ -13,7 +13,9 @@
 #include "ChameleonControllers/ChameleonPlayerController.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "CableComponent.h"
-
+#include "Kismet/KismetMathLibrary.h"
+#include <Kismet/GameplayStatics.h>
+#include "Enemies/EnemyBase.h"
 
 #include "DrawDebugHelpers.h"
 
@@ -107,7 +109,7 @@ void AChameleonCharacter::Tick(float DeltaTime)
 	if (bIsHooked)
 	{
 		UpdateHookedTongue();
-		//UpdateHookedHang();
+
 		UpdateSwing(DeltaTime);
 	}
 
@@ -138,6 +140,8 @@ void AChameleonCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
 		EnhancedInputComponent->BindAction(ClimbAction, ETriggerEvent::Triggered, this, &AChameleonCharacter::ClimbingLineTrace);
 		EnhancedInputComponent->BindAction(GrappleAction, ETriggerEvent::Started, this, &AChameleonCharacter::StartGrappleCharge);
 		EnhancedInputComponent->BindAction(GrappleAction, ETriggerEvent::Completed, this, &AChameleonCharacter::ReleaseGrappleCharge);
+		EnhancedInputComponent->BindAction(TakeKeyAction, ETriggerEvent::Triggered, this, &AChameleonCharacter::TakeKeyActionPressed);
+		EnhancedInputComponent->BindAction(ShooTongueAction, ETriggerEvent::Triggered, this, &AChameleonCharacter::ShootTonguePressed);
 	}
 	else
 	{
@@ -284,6 +288,39 @@ void AChameleonCharacter::InvisibleActionPressed(const FInputActionValue& Value)
 
 }
 
+void AChameleonCharacter::TakeKeyActionPressed(const FInputActionValue& Value)
+{
+	if (bHasKey) return;
+	AActor* KeyActor = nullptr;
+	TArray<AActor*> FoundActors;
+	UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("Key"), FoundActors);
+
+	if (FoundActors.Num() > 0)
+	{
+		KeyActor = FoundActors[0];
+	}
+	if (KeyActor && !bHasKey)
+	{
+		FRotator NewRotation = GetActorRotation();
+
+		NewRotation.Yaw = (KeyActor->GetActorLocation().X <= 0.f) ? 0.f : 180.f;
+
+		SetActorRotation(NewRotation);
+
+		InitialTongueTransforms = CtrlTongueTransform;
+		FVector InversedPosition = GetMesh()->GetComponentTransform().InverseTransformPosition(KeyActor->GetActorLocation());
+		bTongueActive = true;
+		CtrlTongueTransform = UKismetMathLibrary::MakeTransform(InversedPosition, FRotator::ZeroRotator, FVector(1.f));
+		GetWorldTimerManager().SetTimer(KeyTimerHandle, [this, KeyActor]() {
+			bHasKey = true;
+			bTongueActive = false;
+			CtrlTongueTransform = InitialTongueTransforms;
+			KeyActor->Destroy();
+			}, 0.2f, false);
+
+	}
+}
+
 
 void AChameleonCharacter::UpdateTransparentMaterial(float TransparentValue)
 {
@@ -377,8 +414,8 @@ void AChameleonCharacter::CheckClimbSurface()
 	);
 
 	// debug
-	DrawDebugLine(GetWorld(), LowerStart, LowerEnd, bLowerHit ? FColor::Green : FColor::Red, false, 0.1f, 0, 2.f);
-	DrawDebugLine(GetWorld(), UpperStart, UpperEnd, bUpperHit ? FColor::Blue : FColor::Yellow, false, 0.1f, 0, 2.f);
+	//DrawDebugLine(GetWorld(), LowerStart, LowerEnd, bLowerHit ? FColor::Green : FColor::Red, false, 0.1f, 0, 2.f);
+	//DrawDebugLine(GetWorld(), UpperStart, UpperEnd, bUpperHit ? FColor::Blue : FColor::Yellow, false, 0.1f, 0, 2.f);
 
 
 	if (bLowerHit && !bUpperHit)
@@ -457,6 +494,7 @@ void AChameleonCharacter::StartGrappleCharge()
 	GrappleChargeTime = 0.f;
 
 	CalculateMouseDirection();
+	UpdateFacingFromMouseDirection();
 
 	TongueStartLocation = GetMesh()->GetBoneLocation(TEXT("tongue"));
 
@@ -464,27 +502,21 @@ void AChameleonCharacter::StartGrappleCharge()
 	AdjustedDirection.Y = 0.f;
 	AdjustedDirection.Normalize();
 
-	TongueTargetLocation = TongueStartLocation + AdjustedDirection * CurrentGrappleDistance;
+	FVector Start = StartGrappleLocation->GetComponentLocation();
+	FVector End = Start + MouseDirection * CurrentGrappleDistance;
+	End.Y = Start.Y;
+
+	TongueStartLocation = GetMesh()->GetBoneLocation(TEXT("tongue"));
+	TongueTargetLocation = End;
 	TongueTargetLocation.Y = TongueStartLocation.Y;
 
-	bTongueActive = true;
-
-	FVector Direction = TongueTargetLocation - TongueStartLocation;
-	Direction.Y = 0.f;
-	Direction.Normalize();
-
-	FRotator TongueRotation = Direction.Rotation();
-	TongueRotation += FRotator(0.f, 0.f, 90.f);
-
-	CtrlTongueTransform.SetLocation(TongueTargetLocation);
-	CtrlTongueTransform.SetRotation(TongueRotation.Quaternion());
-	CtrlTongueTransform.SetScale3D(FVector(1.f));
+	UpdateTongueToWorldTarget(TongueTargetLocation);
 }
 
 void AChameleonCharacter::StartGrapple(float Distance)
 {
 	CalculateMouseDirection();
-
+	UpdateFacingFromMouseDirection();
 	FVector Start = StartGrappleLocation->GetComponentLocation();
 	FVector End = Start + MouseDirection * Distance;
 
@@ -602,32 +634,19 @@ void AChameleonCharacter::UpdateGrapplePreview()
 	FVector Start = StartGrappleLocation->GetComponentLocation();
 
 	CalculateMouseDirection();
+	UpdateFacingFromMouseDirection();
 
 	FVector End = Start + MouseDirection * CurrentGrappleDistance;
+	End.Y = Start.Y;
 
 	TongueStartLocation = GetMesh()->GetBoneLocation(TEXT("tongue"));
-
-	FVector AdjustedDirection = MouseDirection;
-	AdjustedDirection.Y = 0.f;
-	AdjustedDirection.Normalize();
-
-	TongueTargetLocation = TongueStartLocation + AdjustedDirection * CurrentGrappleDistance;
+	TongueTargetLocation = End;
 	TongueTargetLocation.Y = TongueStartLocation.Y;
 
-	FVector Direction = TongueTargetLocation - TongueStartLocation;
-	Direction.Y = 0.f;
-	Direction.Normalize();
+	UpdateTongueToWorldTarget(TongueTargetLocation);
 
-	FRotator TongueRotation = Direction.Rotation();
-	TongueRotation += FRotator(0.f, 0.f, 90.f);
-
-
-	CtrlTongueTransform.SetLocation(TongueTargetLocation);
-	CtrlTongueTransform.SetRotation(TongueRotation.Quaternion());
-	CtrlTongueTransform.SetScale3D(FVector(1.f));
-
-	DrawDebugSphere(GetWorld(), End, 25.f, 12, FColor::Green, false, 0.f);
-	DrawDebugLine(GetWorld(), Start, End, FColor::Green, false, 0.f, 0, 2.f);
+	//DrawDebugSphere(GetWorld(), End, 25.f, 12, FColor::Green, false, 0.f);
+	//DrawDebugLine(GetWorld(), Start, End, FColor::Green, false, 0.f, 0, 2.f);
 }
 
 void AChameleonCharacter::UpdateHookedTongue()
@@ -636,33 +655,26 @@ void AChameleonCharacter::UpdateHookedTongue()
 
 	TongueStartLocation = GetMesh()->GetBoneLocation(TEXT("tongue"));
 	TongueTargetLocation = HookedLocation;
-
 	TongueTargetLocation.Y = TongueStartLocation.Y;
 
-	FVector Direction = TongueTargetLocation - TongueStartLocation;
-	Direction.Y = 0.f;
-	Direction.Normalize();
+	FRotator NewRotation = GetActorRotation();
 
-	FRotator TongueRotation = Direction.Rotation();
-	TongueRotation += FRotator(0.f, 0.f, 90.f);
+	if (GetActorLocation().X < HookedLocation.X)
+	{
+		NewRotation.Yaw = 0.f;
+	}
+	else
+	{
+		NewRotation.Yaw = 180.f;
+	}
 
-	CtrlTongueTransform.SetLocation(TongueTargetLocation);
-	CtrlTongueTransform.SetRotation(TongueRotation.Quaternion());
-	CtrlTongueTransform.SetScale3D(FVector(1.f));
+	SetActorRotation(NewRotation);
 
-	DrawDebugSphere(GetWorld(), HookedLocation, 20.f, 12, FColor::Red, false, 0.f);
-	DrawDebugLine(GetWorld(), TongueStartLocation, HookedLocation, FColor::Red, false, 0.f, 0, 2.f);
-}
 
-void AChameleonCharacter::UpdateHookedHang()
-{
-	if (!bIsHooked) return;
+	UpdateTongueToWorldTarget(TongueTargetLocation);
 
-	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
-	if (MoveComp == nullptr) return;
-
-	MoveComp->SetMovementMode(MOVE_Falling);
-
+	/*DrawDebugSphere(GetWorld(), HookedLocation, 20.f, 12, FColor::Red, false, 0.f);
+	DrawDebugLine(GetWorld(), TongueStartLocation, HookedLocation, FColor::Red, false, 0.f, 0, 2.f);*/
 }
 
 void AChameleonCharacter::CalculateMouseDirection()
@@ -724,6 +736,111 @@ void AChameleonCharacter::OnGrappleFinished()
 
 	GetCharacterMovement()->SetMovementMode(MOVE_Falling);
 
+	CtrlTongueTransform = FTransform::Identity;
+}
+
+void AChameleonCharacter::UpdateTongueToWorldTarget(const FVector& WorldTargetLocation)
+{
+	if (!GetMesh()) return;
+
+	const FVector InversedPosition =
+		GetMesh()->GetComponentTransform().InverseTransformPosition(WorldTargetLocation);
+
+	bTongueActive = true;
+	CtrlTongueTransform = UKismetMathLibrary::MakeTransform(
+		InversedPosition,
+		FRotator::ZeroRotator,
+		FVector(1.f)
+	);
+}
+
+void AChameleonCharacter::UpdateFacingFromMouseDirection()
+{
+	if (MouseDirection.IsNearlyZero()) return;
+
+	FRotator NewRotation = GetActorRotation();
+
+	NewRotation.Yaw = (MouseDirection.X >= 0.f) ? 0.f : 180.f;
+
+	SetActorRotation(NewRotation);
+}
+
+void AChameleonCharacter::ShootTonguePressed()
+{
+	if (!bCanShootTongue) return;
+	CalculateMouseDirection();
+	UpdateFacingFromMouseDirection();
+	bCanShootTongue = false;
+	if (MouseDirection.IsNearlyZero()) return;
+
+	FVector Start = StartGrappleLocation
+		? StartGrappleLocation->GetComponentLocation()
+		: GetMesh()->GetBoneLocation(TEXT("tongue"));
+
+	Start.Y = GetActorLocation().Y;
+
+	FVector Direction = MouseDirection;
+	Direction.Y = 0.f;
+	Direction.Normalize();
+
+	FVector End = Start + Direction * TongueShootDistance;
+	End.Y = Start.Y;
+
+	bTongueActive = true;
+	TongueStartLocation = GetMesh()->GetBoneLocation(TEXT("tongue"));
+	TongueTargetLocation = End;
+	TongueTargetLocation.Y = TongueStartLocation.Y;
+
+	UpdateTongueToWorldTarget(TongueTargetLocation);
+
+
+	FHitResult HitResult;
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(this);
+
+	bool bHit = GetWorld()->LineTraceSingleByChannel(
+		HitResult,
+		Start,
+		End,
+		ECC_Visibility,
+		QueryParams
+	);
+
+	if (bHit && HitResult.GetActor())
+	{
+		TongueTargetLocation = HitResult.ImpactPoint;
+		TongueTargetLocation.Y = TongueStartLocation.Y;
+		UpdateTongueToWorldTarget(TongueTargetLocation);
+
+		AEnemyBase* Enemy = Cast<AEnemyBase>(HitResult.GetActor());
+		if (Enemy)
+		{
+			UGameplayStatics::ApplyDamage(
+				Enemy,
+				TongueDamage,
+				GetController(),
+				this,
+				UDamageType::StaticClass()
+			);
+		}
+
+		//DrawDebugSphere(GetWorld(), HitResult.ImpactPoint, 14.f, 12, FColor::Red, false, 1.0f);
+	}
+
+	GetWorldTimerManager().ClearTimer(TongueShootTimerHandle);
+	GetWorldTimerManager().SetTimer(
+		TongueShootTimerHandle,
+		this,
+		&AChameleonCharacter::ResetTongueAttack,
+		TongueShootCooldown,
+		false
+	);
+}
+
+void AChameleonCharacter::ResetTongueAttack()
+{
+	bTongueActive = false;
+	bCanShootTongue = true;
 	CtrlTongueTransform = FTransform::Identity;
 }
 

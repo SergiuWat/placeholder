@@ -50,7 +50,7 @@ private:
 	bool bIsClimbing;
 
 	UPROPERTY(BlueprintReadOnly, Category = Character, meta = (AllowPrivateAccess = "true"))
-	bool bTongueActive = false;
+	bool bUseTongue = false;
 
 	UPROPERTY(BlueprintReadOnly, Category = Character, meta = (AllowPrivateAccess = "true"))
 	FVector TongueTargetLocation;
