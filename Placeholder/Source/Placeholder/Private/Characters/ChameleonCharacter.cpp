@@ -16,6 +16,8 @@
 #include "Kismet/KismetMathLibrary.h"
 #include <Kismet/GameplayStatics.h>
 #include "Enemies/EnemyBase.h"
+#include "Sound/SoundBase.h"
+#include "Components/AudioComponent.h"
 
 #include "DrawDebugHelpers.h"
 
@@ -495,6 +497,19 @@ void AChameleonCharacter::StartGrappleCharge()
 	CalculateMouseDirection();
 	UpdateFacingFromMouseDirection();
 
+
+	if (TongueBuildUpSound && !TongueBuildUpAudioComp)
+	{
+		TongueBuildUpAudioComp = UGameplayStatics::SpawnSoundAttached(
+			TongueBuildUpSound,
+			GetMesh(),                     
+			TEXT("tongue"),                
+			FVector::ZeroVector,
+			EAttachLocation::SnapToTarget,
+			true 
+		);
+	}
+
 	TongueStartLocation = GetMesh()->GetBoneLocation(TEXT("tongue"));
 
 	FVector AdjustedDirection = MouseDirection;
@@ -516,6 +531,12 @@ void AChameleonCharacter::StartGrapple(float Distance)
 {
 	CalculateMouseDirection();
 	UpdateFacingFromMouseDirection();
+
+	if (TongueBuildUpAudioComp)
+	{
+		TongueBuildUpAudioComp->Stop();
+		TongueBuildUpAudioComp = nullptr;
+	}
 	FVector Start = StartGrappleLocation->GetComponentLocation();
 	FVector End = Start + MouseDirection * Distance;
 
@@ -710,6 +731,12 @@ void AChameleonCharacter::CalculateMouseDirection()
 
 void AChameleonCharacter::ReleaseGrappleCharge()
 {
+	if (TongueBuildUpAudioComp)
+	{
+		TongueBuildUpAudioComp->Stop();
+		TongueBuildUpAudioComp = nullptr;
+	}
+
 	if (bIsHooked)
 	{
 		OnGrappleFinished();
@@ -724,6 +751,12 @@ void AChameleonCharacter::ReleaseGrappleCharge()
 }
 void AChameleonCharacter::OnGrappleFinished()
 {
+	if (TongueBuildUpAudioComp)
+	{
+		TongueBuildUpAudioComp->Stop();
+		TongueBuildUpAudioComp = nullptr;
+	}
+
 	bIsGrapplingActive = false;
 	bIsChargingGrapple = false;
 	bTongueActive = false;
@@ -769,12 +802,16 @@ void AChameleonCharacter::ShootTonguePressed()
 	if (!bCanShootTongue) return;
 	CalculateMouseDirection();
 	UpdateFacingFromMouseDirection();
+
+	if (TongueShootSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, TongueShootSound, GetActorLocation());
+	}
+
 	bCanShootTongue = false;
 	if (MouseDirection.IsNearlyZero()) return;
 
-	FVector Start = StartGrappleLocation
-		? StartGrappleLocation->GetComponentLocation()
-		: GetMesh()->GetBoneLocation(TEXT("tongue"));
+	FVector Start = StartGrappleLocation ? StartGrappleLocation->GetComponentLocation() : GetMesh()->GetBoneLocation(TEXT("tongue"));
 
 	Start.Y = GetActorLocation().Y;
 
