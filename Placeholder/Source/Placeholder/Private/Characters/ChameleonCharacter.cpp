@@ -18,6 +18,7 @@
 #include "Enemies/EnemyBase.h"
 #include "Sound/SoundBase.h"
 #include "Components/AudioComponent.h"
+#include "Components/SphereComponent.h"
 
 #include "DrawDebugHelpers.h"
 
@@ -64,6 +65,10 @@ AChameleonCharacter::AChameleonCharacter()
 
 	StartGrappleLocation = CreateDefaultSubobject<USceneComponent>(TEXT("StartGrappleLocation"));
 	StartGrappleLocation->SetupAttachment(GetRootComponent());
+
+	HealSphereComponent = CreateDefaultSubobject<USphereComponent>(TEXT("HealSphereComponent"));
+	HealSphereComponent->SetupAttachment(GetRootComponent());
+	HealSphereComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
 }
 
@@ -141,8 +146,10 @@ void AChameleonCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
 		EnhancedInputComponent->BindAction(ClimbAction, ETriggerEvent::Triggered, this, &AChameleonCharacter::ClimbingLineTrace);
 		EnhancedInputComponent->BindAction(GrappleAction, ETriggerEvent::Started, this, &AChameleonCharacter::StartGrappleCharge);
 		EnhancedInputComponent->BindAction(GrappleAction, ETriggerEvent::Completed, this, &AChameleonCharacter::ReleaseGrappleCharge);
+		EnhancedInputComponent->BindAction(ReleaseGrappleAction, ETriggerEvent::Triggered, this, &AChameleonCharacter::ReleaseGrappleCharge);
 		EnhancedInputComponent->BindAction(TakeKeyAction, ETriggerEvent::Triggered, this, &AChameleonCharacter::TakeKeyActionPressed);
 		EnhancedInputComponent->BindAction(ShooTongueAction, ETriggerEvent::Triggered, this, &AChameleonCharacter::ShootTonguePressed);
+		EnhancedInputComponent->BindAction(HealShootAction, ETriggerEvent::Triggered, this, &AChameleonCharacter::HealTongueShoot);
 	}
 	else
 	{
@@ -588,6 +595,36 @@ void AChameleonCharacter::StartGrapple(float Distance)
 			HangLocation.Y = GetActorLocation().Y;
 			HangLocation.Z -= HangDistanceBelowHook;
 		}
+		else if (HitResult.GetActor() && HitResult.GetActor()->ActorHasTag("Enemy"))
+		{
+			AEnemyBase* Enemy = Cast<AEnemyBase>(HitResult.GetActor());
+			if (Enemy)
+			{
+				UGameplayStatics::ApplyDamage(
+					Enemy,
+					TongueDamage,
+					GetController(),
+					this,
+					UDamageType::StaticClass()
+				);
+			}
+			if (TongueBuildUpAudioComp)
+			{
+				TongueBuildUpAudioComp->Stop();
+				TongueBuildUpAudioComp = nullptr;
+			}
+
+			bIsGrapplingActive = false;
+			bIsChargingGrapple = false;
+			bTongueActive = false;
+			bIsHooked = false;
+
+			SwingInputValue = 0.f;
+			GrappleAnchorPoint = FVector::ZeroVector;
+			GrappleRopeLength = 0.f;
+
+			CtrlTongueTransform = FTransform::Identity;
+		}
 		else
 		{
 			UE_LOG(LogTemp, Warning, TEXT("Actor does NOT have GrapplePoint tag"));
@@ -881,3 +918,46 @@ void AChameleonCharacter::ResetTongueAttack()
 }
 
 #pragma endregion 
+
+
+
+void AChameleonCharacter::HealTongueShoot()
+{
+	HealSphereComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	AActor* HealActor = nullptr;
+	TArray<AActor*> OverlappingActors;
+	HealSphereComponent->GetOverlappingActors(OverlappingActors);
+	for (AActor* FoundActor : OverlappingActors)
+	{
+		if (FoundActor->ActorHasTag("HealingFlies"))
+		{
+			HealActor = FoundActor;
+			break;
+		}
+			
+	}
+
+	if (HealActor)
+	{
+
+		FRotator NewRotation = GetActorRotation();
+
+		NewRotation.Yaw = (HealActor->GetActorLocation().X <= 0.f) ? 0.f : 180.f;
+
+		SetActorRotation(NewRotation);
+
+		InitialTongueTransforms = CtrlTongueTransform;
+		FVector InversedPosition = GetMesh()->GetComponentTransform().InverseTransformPosition(HealActor->GetActorLocation());
+		bTongueActive = true;
+		CtrlTongueTransform = UKismetMathLibrary::MakeTransform(InversedPosition, FRotator::ZeroRotator, FVector(1.f));
+		GetWorldTimerManager().SetTimer(KeyTimerHandle, [this, HealActor]() {
+			Health = FMath::Clamp(Health + 40.f, 0.f, MaxHealth);
+			UpdateHUDHealth();
+			bTongueActive = false;
+			CtrlTongueTransform = InitialTongueTransforms;
+			HealSphereComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			HealActor->Destroy();
+			}, 0.2f, false);
+
+	}
+}

@@ -29,6 +29,8 @@ AEnemyBase::AEnemyBase()
 	GetCharacterMovement()->bOrientRotationToMovement = true;
 	GetCharacterMovement()->MaxWalkSpeed = 400.f;
 
+	Tags.Add("Enemy");
+
 	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
 }
 

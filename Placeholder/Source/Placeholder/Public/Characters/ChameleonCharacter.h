@@ -19,6 +19,7 @@ class UAnimMontage;
 class UCableComponent;
 class USoundBase;
 class UAudioComponent;
+class USphereComponent;
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnTransparencyChanged, bool);
 
@@ -75,9 +76,14 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Input")
 	UInputAction* TakeKeyAction;
 
-
 	UPROPERTY(EditAnywhere, Category = "Input")
 	UInputAction* ShooTongueAction;
+
+	UPROPERTY(EditAnywhere, Category = "Input")
+	UInputAction* ReleaseGrappleAction;
+
+	UPROPERTY(EditAnywhere, Category = "Input")
+	UInputAction* HealShootAction;
 
 
 	void Move(const FInputActionValue& Value);
@@ -274,6 +280,14 @@ public:
 
 	UPROPERTY(VisibleAnywhere)
 	FTransform InitialTongueTransforms;
+
+	/*
+	*	Heal
+	*/
+	void HealTongueShoot();
+
+	UPROPERTY(EditAnywhere)
+	USphereComponent* HealSphereComponent;
 
 protected:
 	// Called when the game starts or when spawned
