@@ -12,6 +12,7 @@
 #include "Animation/AnimInstance.h"
 #include "Kismet/GameplayStatics.h"
 
+
 // Sets default values
 AEnemyBase::AEnemyBase()
 {
@@ -177,6 +178,7 @@ void AEnemyBase::PawnSensed(APawn* PawnSensed)
 	if (EnemyState == EEnemyState::EES_Chasing) return;
 	if (PawnSensed->ActorHasTag(FName("ChameleonCharacter")))
 	{
+		UGameplayStatics::PlaySoundAtLocation(this, EnemyAggro, GetActorLocation());
 		if (CachedPlayer->IsCharacterTransparent()) return;
 
 		if (EnemyState != EEnemyState::EES_Attacking)

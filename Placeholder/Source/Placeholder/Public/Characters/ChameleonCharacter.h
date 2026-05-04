@@ -284,6 +284,9 @@ public:
 	/*
 	*	Heal
 	*/
+
+	UPROPERTY(EditAnywhere)
+	USoundBase* EatingFlies;
 	void HealTongueShoot();
 
 	UPROPERTY(EditAnywhere)

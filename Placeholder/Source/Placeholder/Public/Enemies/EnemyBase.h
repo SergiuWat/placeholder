@@ -12,6 +12,7 @@ class AAIController;
 class AAIController;
 class UAnimMontage;
 class AChameleonCharacter;
+class USoundBase;
 UCLASS()
 class PLACEHOLDER_API AEnemyBase : public ACharacter
 {
@@ -72,6 +73,9 @@ public:
 	*  Play Animation Montages
 	*/
 	void PlayAttackMontage();
+
+	UPROPERTY(EditAnywhere)
+	USoundBase* EnemyAggro;
 
 protected:
 	// Called when the game starts or when spawned

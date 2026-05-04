@@ -939,7 +939,7 @@ void AChameleonCharacter::HealTongueShoot()
 
 	if (HealActor)
 	{
-
+		UGameplayStatics::PlaySoundAtLocation(this, EatingFlies, GetActorLocation());
 		FRotator NewRotation = GetActorRotation();
 
 		NewRotation.Yaw = (HealActor->GetActorLocation().X <= 0.f) ? 0.f : 180.f;
